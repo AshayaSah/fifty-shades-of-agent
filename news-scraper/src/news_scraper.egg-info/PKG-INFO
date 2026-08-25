@@ -1,0 +1,14 @@
+Metadata-Version: 2.4
+Name: news-scraper
+Version: 0.1.0
+Summary: Add your description here
+Requires-Python: >=3.14
+Description-Content-Type: text/markdown
+Requires-Dist: feedparser>=6.0.14
+Requires-Dist: mcp[cli]>=2.1.0
+Requires-Dist: psycopg[binary]>=3.3.4
+Requires-Dist: python-dotenv>=1.2.3
+Requires-Dist: requests>=2.34.2
+Requires-Dist: vadersentiment>=3.3.2
+
+** News Scraper **
