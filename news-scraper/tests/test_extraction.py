@@ -1,4 +1,4 @@
-from news_scraper.extraction import classify_event, extract_entities
+from news_scraper.extraction import classify_event, extract_entities, score_entities
 
 
 def test_extract_entities_orgs():
@@ -60,3 +60,35 @@ def test_classify_event_other():
 
 def test_classify_event_empty():
     assert classify_event("") == "other"
+
+
+def test_score_entities_returns_dict():
+    text = "Apple Inc reported excellent earnings. Microsoft missed estimates badly."
+    entities = extract_entities(text)
+    scores = score_entities(text, entities)
+    assert isinstance(scores, dict)
+    assert len(scores) > 0
+
+
+def test_score_entities_positive_company():
+    text = "Apple Inc delighted investors with record-breaking revenue and outstanding growth."
+    entities = {"orgs": ["Apple Inc"], "people": [], "locations": []}
+    scores = score_entities(text, entities)
+    assert "Apple Inc" in scores
+    assert scores["Apple Inc"] > 0
+
+
+def test_score_entities_negative_company():
+    text = "Apple Inc faces a devastating lawsuit and严重的 fraud allegations."
+    entities = {"orgs": ["Apple Inc"], "people": [], "locations": []}
+    scores = score_entities(text, entities)
+    assert "Apple Inc" in scores
+    assert scores["Apple Inc"] < 0
+
+
+def test_score_entities_empty_text():
+    assert score_entities("", {"orgs": ["Apple"], "people": [], "locations": []}) == {}
+
+
+def test_score_entities_no_entities():
+    assert score_entities("Some text without entities.", {"orgs": [], "people": [], "locations": []}) == {}

@@ -51,6 +51,7 @@ def scrape_news(symbol: str, company_keyword: str, days: int = 30) -> dict:
         score = sentiment.score_text(text_for_analysis)
         entities = extraction.extract_entities(text_for_analysis)
         event_type = extraction.classify_event(text_for_analysis)
+        entity_scores = extraction.score_entities(text_for_analysis, entities)
         event_counts[event_type] = event_counts.get(event_type, 0) + 1
         rows.append((
             symbol,
@@ -62,6 +63,7 @@ def scrape_news(symbol: str, company_keyword: str, days: int = 30) -> dict:
             article["full_text"],
             entities,
             event_type,
+            entity_scores,
         ))
 
     db.save_articles(rows)
@@ -99,6 +101,7 @@ def get_news(symbol: str, days: int = 30) -> list[dict]:
             "full_text": row[5],
             "entities": row[6],
             "event_type": row[7],
+            "entity_scores": row[8],
         }
         for row in rows
     ]
@@ -113,7 +116,8 @@ def get_sentiment_summary(symbol: str, days: int = 30) -> dict:
         days: How many days back to analyze (default 30).
 
     Returns:
-        Symbol, total article count, average sentiment score, and event breakdown.
+        Symbol, article count, average sentiment, event breakdown,
+        and average per-entity sentiment across all articles.
     """
     rows = db.fetch_articles(symbol, days)
     scores = [row[4] for row in rows if row[4] is not None]
@@ -123,9 +127,22 @@ def get_sentiment_summary(symbol: str, days: int = 30) -> dict:
         et = row[7]
         if et:
             event_counts[et] = event_counts.get(et, 0) + 1
+
+    entity_agg: dict[str, list[float]] = {}
+    for row in rows:
+        es = row[8]
+        if es:
+            for name, val in es.items():
+                entity_agg.setdefault(name, []).append(val)
+    avg_entity_scores = {
+        name: round(sum(vals) / len(vals), 4)
+        for name, vals in entity_agg.items()
+    }
+
     return {
         "symbol": symbol,
         "article_count": len(rows),
         "average_sentiment": avg,
         "event_breakdown": event_counts,
+        "avg_entity_sentiment": avg_entity_scores,
     }

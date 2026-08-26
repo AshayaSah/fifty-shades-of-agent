@@ -1,5 +1,7 @@
 import spacy
 
+from news_scraper import sentiment
+
 _nlp = spacy.load("en_core_web_sm")
 
 _EVENT_RULES = [
@@ -78,3 +80,31 @@ def classify_event(text: str) -> str:
     if not scores:
         return "other"
     return max(scores, key=scores.get)
+
+
+def score_entities(text: str, entities: dict[str, list[str]]) -> dict[str, float]:
+    """Compute per-entity sentiment scores.
+
+    For each entity, finds sentences mentioning it and averages
+    their FinBERT scores. Returns dict mapping entity name -> score.
+    """
+    if not text or not entities:
+        return {}
+
+    doc = _nlp(text[:10000])
+    sentences = [sent.text for sent in doc.sents]
+
+    all_entity_names = (
+        entities.get("orgs", [])
+        + entities.get("people", [])
+        + entities.get("locations", [])
+    )
+
+    entity_scores = {}
+    for name in all_entity_names:
+        matching = [s for s in sentences if name in s]
+        if matching:
+            scores = [sentiment.score_text(s) for s in matching]
+            entity_scores[name] = round(sum(scores) / len(scores), 4)
+
+    return entity_scores
