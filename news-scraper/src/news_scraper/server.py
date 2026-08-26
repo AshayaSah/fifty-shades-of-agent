@@ -146,3 +146,47 @@ def get_sentiment_summary(symbol: str, days: int = 30) -> dict:
         "event_breakdown": event_counts,
         "avg_entity_sentiment": avg_entity_scores,
     }
+
+
+@mcp.tool()
+def get_sentiment_trend(symbol: str, days: int = 30) -> list[dict]:
+    """Get daily sentiment trend for a stock symbol over time.
+
+    Shows how average sentiment changes day-by-day, useful for
+    spotting momentum shifts or reaction to events.
+
+    Args:
+        symbol: Stock ticker symbol (e.g. "AAPL").
+        days: How many days back to analyze (default 30).
+
+    Returns:
+        List of daily entries with date, average sentiment, and article count,
+        most recent first.
+    """
+    rows = db.fetch_sentiment_trend(symbol, days)
+    return [
+        {"date": str(row[0]), "avg_sentiment": float(row[1]), "article_count": row[2]}
+        for row in rows
+    ]
+
+
+@mcp.tool()
+def get_source_comparison(symbol: str, days: int = 30) -> list[dict]:
+    """Compare sentiment across different news sources for a stock symbol.
+
+    Shows which outlets are more positive or negative about a company,
+    useful for understanding media bias or coverage differences.
+
+    Args:
+        symbol: Stock ticker symbol (e.g. "AAPL").
+        days: How many days back to analyze (default 30).
+
+    Returns:
+        List of source entries with source name, average sentiment,
+        and article count, most positive first.
+    """
+    rows = db.fetch_source_comparison(symbol, days)
+    return [
+        {"source": row[0], "avg_sentiment": float(row[1]), "article_count": row[2]}
+        for row in rows
+    ]

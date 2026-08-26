@@ -100,3 +100,41 @@ def fetch_articles(symbol, days=30):
                 (symbol, cutoff),
             )
             return cur.fetchall()
+
+
+def fetch_sentiment_trend(symbol, days=30):
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT DATE(published_at) AS day,
+                       ROUND(AVG(sentiment_score)::numeric, 4) AS avg_sentiment,
+                       COUNT(*) AS article_count
+                FROM news_articles
+                WHERE symbol = %s AND published_at >= %s AND sentiment_score IS NOT NULL
+                GROUP BY day
+                ORDER BY day DESC
+                """,
+                (symbol, cutoff),
+            )
+            return cur.fetchall()
+
+
+def fetch_source_comparison(symbol, days=30):
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT source,
+                       ROUND(AVG(sentiment_score)::numeric, 4) AS avg_sentiment,
+                       COUNT(*) AS article_count
+                FROM news_articles
+                WHERE symbol = %s AND published_at >= %s AND sentiment_score IS NOT NULL
+                GROUP BY source
+                ORDER BY avg_sentiment DESC
+                """,
+                (symbol, cutoff),
+            )
+            return cur.fetchall()
