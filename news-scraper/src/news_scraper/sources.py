@@ -3,12 +3,27 @@ from datetime import datetime, timedelta, timezone
 
 import feedparser
 import requests
+import trafilatura
 from dotenv import load_dotenv
 
 load_dotenv()
 
 BBC_RSS_URL = "http://feeds.bbci.co.uk/news/business/rss.xml"
 NEWSAPI_BASE = "https://newsapi.org/v2/everything"
+
+
+def scrape_article_text(url: str) -> str | None:
+    """Download and extract clean article body text from a URL.
+
+    Returns None if extraction fails or the page is inaccessible.
+    """
+    try:
+        downloaded = trafilatura.fetch_url(url)
+        if downloaded:
+            return trafilatura.extract(downloaded, include_comments=False, include_tables=False)
+    except Exception:
+        pass
+    return None
 
 
 def fetch_bbc(symbol_keyword: str) -> list[dict]:
@@ -27,6 +42,7 @@ def fetch_bbc(symbol_keyword: str) -> list[dict]:
                 "url": entry.get("link", ""),
                 "published_at": published,
                 "text": summary or title,
+                "full_text": None,
             })
     return results
 
@@ -56,5 +72,6 @@ def fetch_newsapi(symbol_keyword: str, days: int = 30) -> list[dict]:
             "url": article.get("url", ""),
             "published_at": published,
             "text": article.get("description") or article.get("title", ""),
+            "full_text": None,
         })
     return results

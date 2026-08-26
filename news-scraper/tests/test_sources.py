@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from unittest.mock import patch
 
-from news_scraper.sources import fetch_bbc, fetch_newsapi
+from news_scraper.sources import fetch_bbc, fetch_newsapi, scrape_article_text
 
 
 @patch("news_scraper.sources.feedparser.parse")
@@ -31,6 +31,7 @@ def test_fetch_bbc_filters_by_keyword(mock_parse):
     assert results[0]["url"] == "http://bbc.co.uk/1"
     assert results[0]["published_at"] == datetime(2026, 8, 20, 10, 0, 0, tzinfo=timezone.utc)
     assert results[0]["text"] == "Apple Inc reported stellar quarterly results."
+    assert results[0]["full_text"] is None
 
 
 @patch("news_scraper.sources.requests.get")
@@ -65,6 +66,7 @@ def test_fetch_newsapi_parses_articles(mock_get):
     assert results[0]["url"] == "https://reuters.com/1"
     assert results[0]["published_at"] == datetime(2026, 8, 15, 8, 30, 0, tzinfo=timezone.utc)
     assert results[0]["text"] == "Apple unveiled its latest device."
+    assert results[0]["full_text"] is None
     assert results[1]["source"] == "Bloomberg"
 
 
@@ -77,3 +79,21 @@ def test_fetch_newsapi_empty_articles(mock_get):
     results = fetch_newsapi("XYZNONEXISTENT")
 
     assert results == []
+
+
+@patch("news_scraper.sources.trafilatura.fetch_url")
+@patch("news_scraper.sources.trafilatura.extract")
+def test_scrape_article_text_success(mock_extract, mock_fetch):
+    mock_fetch.return_value = "<html><p>Full article body text here.</p></html>"
+    mock_extract.return_value = "Full article body text here."
+
+    result = scrape_article_text("http://example.com/article")
+
+    assert result == "Full article body text here."
+    mock_fetch.assert_called_once_with("http://example.com/article")
+
+
+@patch("news_scraper.sources.trafilatura.fetch_url", side_effect=Exception("network error"))
+def test_scrape_article_text_failure(mock_fetch):
+    result = scrape_article_text("http://example.com/broken")
+    assert result is None
