@@ -86,7 +86,8 @@ def score_entities(text: str, entities: dict[str, list[str]]) -> dict[str, float
     """Compute per-entity sentiment scores.
 
     For each entity, finds sentences mentioning it and averages
-    their FinBERT scores. Returns dict mapping entity name -> score.
+    their FinBERT scores. Batches all sentences into a single
+    FinBERT call for performance.
     """
     if not text or not entities:
         return {}
@@ -100,11 +101,31 @@ def score_entities(text: str, entities: dict[str, list[str]]) -> dict[str, float
         + entities.get("locations", [])
     )
 
-    entity_scores = {}
+    entity_sentences: dict[str, list[str]] = {}
     for name in all_entity_names:
         matching = [s for s in sentences if name in s]
         if matching:
-            scores = [sentiment.score_text(s) for s in matching]
-            entity_scores[name] = round(sum(scores) / len(scores), 4)
+            entity_sentences[name] = matching
 
-    return entity_scores
+    if not entity_sentences:
+        return {}
+
+    all_sents = []
+    sent_to_entities: dict[int, list[str]] = {}
+    for name, sents in entity_sentences.items():
+        for s in sents:
+            idx = len(all_sents)
+            all_sents.append(s)
+            sent_to_entities.setdefault(idx, []).append(name)
+
+    all_scores = sentiment.score_texts(all_sents)
+
+    entity_accum: dict[str, list[float]] = {}
+    for idx, score in all_scores.items():
+        for name in sent_to_entities[idx]:
+            entity_accum.setdefault(name, []).append(score)
+
+    return {
+        name: round(sum(vals) / len(vals), 4)
+        for name, vals in entity_accum.items()
+    }

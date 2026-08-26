@@ -10,6 +10,7 @@ load_dotenv()
 
 BBC_RSS_URL = "http://feeds.bbci.co.uk/news/business/rss.xml"
 NEWSAPI_BASE = "https://newsapi.org/v2/everything"
+_SCRAPE_TIMEOUT = 8
 
 
 def scrape_article_text(url: str) -> str | None:
@@ -51,7 +52,7 @@ def fetch_newsapi(symbol_keyword: str, days: int = 30) -> list[dict]:
     api_key = os.environ.get("NEWSAPI_KEY", "")
     from_date = (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%d")
     params = {
-        "q": symbol_keyword,
+        "qInTitle": symbol_keyword,
         "from": from_date,
         "sortBy": "publishedAt",
         "language": "en",

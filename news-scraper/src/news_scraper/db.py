@@ -70,6 +70,15 @@ def save_articles(articles):
     """
     if not articles:
         return
+    serialized = []
+    for row in articles:
+        serialized.append((
+            row[0], row[1], row[2], row[3], row[4], row[5],
+            row[6],
+            json.dumps(row[7]) if row[7] else None,
+            row[8],
+            json.dumps(row[9]) if row[9] else None,
+        ))
     with get_conn() as conn:
         with conn.cursor() as cur:
             cur.executemany(
@@ -80,7 +89,7 @@ def save_articles(articles):
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (url) DO NOTHING
                 """,
-                articles,
+                serialized,
             )
         conn.commit()
 

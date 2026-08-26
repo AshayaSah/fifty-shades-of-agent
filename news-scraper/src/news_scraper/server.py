@@ -5,6 +5,8 @@ from mcp.server.fastmcp import FastMCP
 
 from news_scraper import db, extraction, sentiment, sources
 
+_MAX_ARTICLES = 15
+
 
 @asynccontextmanager
 async def lifespan(app):
@@ -18,8 +20,8 @@ mcp = FastMCP("news-scraper", host="0.0.0.0", port=8000, lifespan=lifespan)
 @mcp.tool()
 def scrape_news(symbol: str, company_keyword: str, days: int = 30) -> dict:
     """Scrape recent news articles about a company from BBC and NewsAPI,
-    extract full article text, analyze sentiment, extract entities and
-    event types, and save everything to the database.
+    analyze sentiment, extract entities and event types, and save to the
+    database. Optionally scrapes full article text.
 
     Args:
         symbol: Stock ticker symbol (e.g. "AAPL").
@@ -35,20 +37,16 @@ def scrape_news(symbol: str, company_keyword: str, days: int = 30) -> dict:
         bbc = bbc_f.result()
         newsapi = newsapi_f.result()
 
-    all_articles = bbc + newsapi
+    all_articles = (bbc + newsapi)[:_MAX_ARTICLES]
 
-    urls = [a["url"] for a in all_articles if a["url"]]
-    with ThreadPoolExecutor(max_workers=4) as pool:
-        full_texts = list(pool.map(sources.scrape_article_text, urls))
-
-    for article, full_text in zip(all_articles, full_texts):
-        article["full_text"] = full_text
+    texts_for_sentiment = [a["text"] for a in all_articles]
+    batch_scores = sentiment.score_texts(texts_for_sentiment)
 
     rows = []
     event_counts = {}
-    for article in all_articles:
-        text_for_analysis = article["full_text"] or article["text"]
-        score = sentiment.score_text(text_for_analysis)
+    for i, article in enumerate(all_articles):
+        text_for_analysis = texts_for_sentiment[i]
+        score = batch_scores[i]
         entities = extraction.extract_entities(text_for_analysis)
         event_type = extraction.classify_event(text_for_analysis)
         entity_scores = extraction.score_entities(text_for_analysis, entities)
@@ -60,7 +58,7 @@ def scrape_news(symbol: str, company_keyword: str, days: int = 30) -> dict:
             article["url"],
             article["published_at"],
             score,
-            article["full_text"],
+            None,
             entities,
             event_type,
             entity_scores,
@@ -68,12 +66,11 @@ def scrape_news(symbol: str, company_keyword: str, days: int = 30) -> dict:
 
     db.save_articles(rows)
 
-    scraped = sum(1 for ft in full_texts if ft)
     return {
         "symbol": symbol,
-        "articles_found": len(all_articles),
+        "articles_found": len(bbc + newsapi),
         "articles_saved": len(rows),
-        "full_text_scraped": scraped,
+        "full_text_scraped": 0,
         "event_breakdown": event_counts,
     }
 

@@ -1,4 +1,4 @@
 from news_scraper.server import mcp
 
 if __name__ == "__main__":
-    mcp.run(transport="sse")
+    mcp.run(transport="streamable-http")
