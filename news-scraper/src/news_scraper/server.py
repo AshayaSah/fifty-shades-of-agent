@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 
 from mcp.server.fastmcp import FastMCP
 
-from news_scraper import db, sentiment, sources
+from news_scraper import db, extraction, sentiment, sources
 
 
 @asynccontextmanager
@@ -18,7 +18,8 @@ mcp = FastMCP("news-scraper", host="0.0.0.0", port=8000, lifespan=lifespan)
 @mcp.tool()
 def scrape_news(symbol: str, company_keyword: str, days: int = 30) -> dict:
     """Scrape recent news articles about a company from BBC and NewsAPI,
-    extract full article text, score sentiment, and save to the database.
+    extract full article text, analyze sentiment, extract entities and
+    event types, and save everything to the database.
 
     Args:
         symbol: Stock ticker symbol (e.g. "AAPL").
@@ -26,7 +27,7 @@ def scrape_news(symbol: str, company_keyword: str, days: int = 30) -> dict:
         days: How many days back to search (default 30).
 
     Returns:
-        Summary with article counts found and saved.
+        Summary with article counts, full text scrape count, and event breakdown.
     """
     with ThreadPoolExecutor(max_workers=2) as pool:
         bbc_f = pool.submit(sources.fetch_bbc, company_keyword)
@@ -44,9 +45,13 @@ def scrape_news(symbol: str, company_keyword: str, days: int = 30) -> dict:
         article["full_text"] = full_text
 
     rows = []
+    event_counts = {}
     for article in all_articles:
-        text_for_sentiment = article["full_text"] or article["text"]
-        score = sentiment.score_text(text_for_sentiment)
+        text_for_analysis = article["full_text"] or article["text"]
+        score = sentiment.score_text(text_for_analysis)
+        entities = extraction.extract_entities(text_for_analysis)
+        event_type = extraction.classify_event(text_for_analysis)
+        event_counts[event_type] = event_counts.get(event_type, 0) + 1
         rows.append((
             symbol,
             article["source"],
@@ -55,6 +60,8 @@ def scrape_news(symbol: str, company_keyword: str, days: int = 30) -> dict:
             article["published_at"],
             score,
             article["full_text"],
+            entities,
+            event_type,
         ))
 
     db.save_articles(rows)
@@ -65,6 +72,7 @@ def scrape_news(symbol: str, company_keyword: str, days: int = 30) -> dict:
         "articles_found": len(all_articles),
         "articles_saved": len(rows),
         "full_text_scraped": scraped,
+        "event_breakdown": event_counts,
     }
 
 
@@ -78,7 +86,7 @@ def get_news(symbol: str, days: int = 30) -> list[dict]:
 
     Returns:
         List of articles with source, title, URL, publication time,
-        sentiment score, and full article text (if available).
+        sentiment score, entities, event type, and full article text.
     """
     rows = db.fetch_articles(symbol, days)
     return [
@@ -89,6 +97,8 @@ def get_news(symbol: str, days: int = 30) -> list[dict]:
             "published_at": row[3],
             "sentiment_score": row[4],
             "full_text": row[5],
+            "entities": row[6],
+            "event_type": row[7],
         }
         for row in rows
     ]
@@ -103,9 +113,19 @@ def get_sentiment_summary(symbol: str, days: int = 30) -> dict:
         days: How many days back to analyze (default 30).
 
     Returns:
-        Symbol, total article count, and average sentiment score (range -1.0 to 1.0).
+        Symbol, total article count, average sentiment score, and event breakdown.
     """
     rows = db.fetch_articles(symbol, days)
     scores = [row[4] for row in rows if row[4] is not None]
     avg = sum(scores) / len(scores) if scores else None
-    return {"symbol": symbol, "article_count": len(rows), "average_sentiment": avg}
+    event_counts = {}
+    for row in rows:
+        et = row[7]
+        if et:
+            event_counts[et] = event_counts.get(et, 0) + 1
+    return {
+        "symbol": symbol,
+        "article_count": len(rows),
+        "average_sentiment": avg,
+        "event_breakdown": event_counts,
+    }
