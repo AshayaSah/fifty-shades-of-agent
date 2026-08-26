@@ -1,0 +1,6 @@
+feedparser>=6.0.14
+mcp[cli]>=2.1.0
+psycopg[binary]>=3.3.4
+python-dotenv>=1.2.3
+requests>=2.34.2
+vadersentiment>=3.3.2

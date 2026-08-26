@@ -1,6 +1,4 @@
-def main():
-    print("Hello from news-scraper!")
-
+from news_scraper.server import mcp
 
 if __name__ == "__main__":
-    main()
+    mcp.run(transport="streamable-http")
