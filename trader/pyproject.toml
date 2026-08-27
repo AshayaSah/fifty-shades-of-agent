@@ -9,3 +9,8 @@ dependencies = [
     "metatrader5>=5.0.6090",
     "python-dotenv>=1.2.3",
 ]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]

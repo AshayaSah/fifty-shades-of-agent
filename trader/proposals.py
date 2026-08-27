@@ -30,3 +30,15 @@ def create_proposal(
 
 def get_proposal(proposal_id: str) -> dict | None:
     return _store.get(proposal_id)
+
+
+def update_proposal_status(
+    proposal_id: str, status: str, result: dict | None = None
+) -> dict | None:
+    proposal = _store.get(proposal_id)
+    if proposal is None:
+        return None
+    proposal["status"] = status
+    if result is not None:
+        proposal["result"] = result
+    return proposal

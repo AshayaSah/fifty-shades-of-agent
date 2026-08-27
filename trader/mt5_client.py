@@ -88,3 +88,30 @@ def get_positions() -> list[dict]:
         }
         for p in positions
     ]
+
+
+def get_symbol_spec(symbol: str) -> dict:
+    """Fetch pip value and point size for a symbol from MT5."""
+    connect()
+    info = mt5.symbol_info(symbol)
+    if info is None:
+        code, comment = mt5.last_error()
+        raise MT5ConnectionError(
+            f"Symbol '{symbol}' not found: {comment} (code {code})"
+        )
+    digits = info.digits
+    if digits in (4, 5):
+        pip_size = 10 * info.point
+    else:
+        pip_size = info.point
+    pip_value = pip_size * info.trade_contract_size
+    return {
+        "symbol": symbol,
+        "point": info.point,
+        "digits": digits,
+        "pip_size": pip_size,
+        "pip_value": pip_value,
+        "contract_size": info.trade_contract_size,
+        "currency_base": info.currency_base,
+        "currency_profit": info.currency_profit,
+    }
