@@ -167,5 +167,52 @@ def execute_trade(
     }
 
 
+@mcp.tool(structured_output=False)
+def close_position(ticket: int) -> dict:
+    """Close an open position by its MT5 ticket."""
+    if _kill_switch_on:
+        audit.log_event("close_rejected", {"ticket": ticket, "reason": "kill_switch_on"})
+        return {"error": "Kill switch is ON. All trading is halted."}
+
+    mt5_client.connect()
+    pos = mt5.positions_get(ticket=ticket)
+    if not pos:
+        return {"error": f"Position not found for ticket {ticket}"}
+    position = pos[0]
+
+    order_type = mt5.ORDER_TYPE_SELL if position.type == mt5.POSITION_TYPE_BUY else mt5.ORDER_TYPE_BUY
+    tick = mt5.symbol_info_tick(position.symbol)
+    request = {
+        "action": mt5.TRADE_ACTION_DEAL,
+        "symbol": position.symbol,
+        "volume": position.volume,
+        "type": order_type,
+        "position": ticket,
+        "price": tick.bid if order_type == mt5.ORDER_TYPE_SELL else tick.ask,
+        "deviation": 20,
+        "magic": 0,
+        "comment": f"MCP-CLOSE:{ticket}",
+        "type_time": mt5.ORDER_TIME_GTC,
+        "type_filling": mt5.ORDER_FILLING_IOC,
+    }
+    result = mt5.order_send(request)
+
+    if result is None:
+        code, comment = mt5.last_error()
+        audit.log_event("close_failed", {"ticket": ticket, "mt5_code": code, "mt5_comment": comment})
+        return {"error": f"close failed: {comment} (code {code})"}
+
+    if result.retcode != mt5.TRADE_RETCODE_DONE:
+        audit.log_event("close_failed", {"ticket": ticket, "mt5_code": result.retcode, "mt5_comment": result.comment})
+        return {"error": f"Close rejected: {result.comment} (code {result.retcode})"}
+
+    audit.log_event("close_executed", {"ticket": ticket})
+    return {
+        "status": "closed",
+        "ticket": ticket,
+        "close_price": result.price,
+    }
+
+
 if __name__ == "__main__":
     mcp.run(transport="streamable-http", host="0.0.0.0", port=8000)
