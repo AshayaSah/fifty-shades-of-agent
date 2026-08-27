@@ -1,8 +1,19 @@
 import MetaTrader5 as mt5
+from datetime import datetime, timezone, timedelta
 from mcp.server.mcpserver import MCPServer
 import mt5_client
 import proposals
 import sizing
+import audit
+
+MAX_RISK_PERCENT = 2.0
+MAX_CONCURRENT_POSITIONS = 3
+PROPOSAL_EXPIRY_MINUTES = 15
+
+_kill_switch_on = False
+
+# TODO: Replace "PLACEHOLDER_TOKEN" with real TrueForge approval wiring in Phase 6.
+PLACEHOLDER_TOKEN = "PLACEHOLDER_TOKEN"
 
 mcp = MCPServer("exness-mcp-trader")
 
@@ -37,7 +48,9 @@ def propose_trade(
     """Create a trade proposal. direction must be 'buy' or 'sell'."""
     if direction not in ("buy", "sell"):
         return {"error": f"direction must be 'buy' or 'sell', got '{direction}'"}
-    return proposals.create_proposal(symbol, direction, entry, sl, tp, rationale)
+    proposal = proposals.create_proposal(symbol, direction, entry, sl, tp, rationale)
+    audit.log_event("proposal_created", {"proposal_id": proposal["id"], "symbol": symbol, "direction": direction})
+    return proposal
 
 
 @mcp.tool(structured_output=False)
@@ -49,8 +62,15 @@ def get_proposal(proposal_id: str) -> dict:
     return proposal
 
 
-# TODO: Replace "PLACEHOLDER_TOKEN" with real TrueForge approval wiring in Phase 6.
-PLACEHOLDER_TOKEN = "PLACEHOLDER_TOKEN"
+@mcp.tool(structured_output=False)
+def kill_switch(state: str) -> dict:
+    """Set the kill switch 'on' or 'off'. Returns current state."""
+    global _kill_switch_on
+    if state not in ("on", "off"):
+        return {"error": f"state must be 'on' or 'off', got '{state}'", "kill_switch": "on" if _kill_switch_on else "off"}
+    _kill_switch_on = state == "on"
+    audit.log_event("kill_switch", {"state": state})
+    return {"kill_switch": state}
 
 
 @mcp.tool(structured_output=False)
@@ -61,13 +81,34 @@ def execute_trade(
 ) -> dict:
     """Execute a pending trade proposal via MT5. Requires approval token."""
     if approval_token != PLACEHOLDER_TOKEN:
+        audit.log_event("trade_rejected", {"proposal_id": proposal_id, "reason": "invalid_approval_token"})
         return {"error": "Invalid approval token."}
+
+    if _kill_switch_on:
+        audit.log_event("trade_rejected", {"proposal_id": proposal_id, "reason": "kill_switch_on"})
+        return {"error": "Kill switch is ON. All trading is halted."}
+
+    if risk_percent > MAX_RISK_PERCENT:
+        audit.log_event("trade_rejected", {"proposal_id": proposal_id, "reason": "risk_exceeds_max", "risk_requested": risk_percent})
+        return {"error": f"Risk {risk_percent}% exceeds maximum {MAX_RISK_PERCENT}%."}
 
     proposal = proposals.get_proposal(proposal_id)
     if proposal is None:
         return {"error": f"Proposal not found: {proposal_id}"}
     if proposal["status"] != "pending":
         return {"error": f"Proposal is not pending (status={proposal['status']})."}
+
+    created = datetime.fromisoformat(proposal["created_at"])
+    age_minutes = (datetime.now(timezone.utc) - created).total_seconds() / 60
+    if age_minutes > PROPOSAL_EXPIRY_MINUTES:
+        proposals.update_proposal_status(proposal_id, "expired")
+        audit.log_event("trade_rejected", {"proposal_id": proposal_id, "reason": "proposal_expired", "age_minutes": round(age_minutes, 1)})
+        return {"error": f"Proposal expired ({round(age_minutes, 1)} min old, max {PROPOSAL_EXPIRY_MINUTES})."}
+
+    positions = mt5_client.get_positions()
+    if len(positions) >= MAX_CONCURRENT_POSITIONS:
+        audit.log_event("trade_rejected", {"proposal_id": proposal_id, "reason": "max_positions_reached", "open_count": len(positions)})
+        return {"error": f"Max concurrent positions ({MAX_CONCURRENT_POSITIONS}) reached. Close a position first."}
 
     account = mt5_client.get_account_info()
     equity = account["equity"]
@@ -78,17 +119,19 @@ def execute_trade(
     sl_distance_pips = sl_distance / spec["pip_size"]
     lot_size = sizing.calculate_lot_size(equity, risk_percent, sl_distance_pips, pip_value)
     if lot_size <= 0:
-        proposals.update_proposal_status(proposal_id, "failed", {"reason": "Calculated lot size is 0"})
+        proposals.update_proposal_status(proposal_id, "failed", {"reason": "lot_size_zero"})
+        audit.log_event("trade_rejected", {"proposal_id": proposal_id, "reason": "lot_size_zero"})
         return {"error": "Calculated lot size is 0. Check risk% and SL distance."}
 
     mt5_client.connect()
     order_type = mt5.ORDER_TYPE_BUY if proposal["direction"] == "buy" else mt5.ORDER_TYPE_SELL
+    tick = mt5.symbol_info_tick(proposal["symbol"])
     request = {
         "action": mt5.TRADE_ACTION_DEAL,
         "symbol": proposal["symbol"],
         "volume": lot_size,
         "type": order_type,
-        "price": mt5.symbol_info_tick(proposal["symbol"]).ask if order_type == mt5.ORDER_TYPE_BUY else mt5.symbol_info_tick(proposal["symbol"]).bid,
+        "price": tick.ask if order_type == mt5.ORDER_TYPE_BUY else tick.bid,
         "sl": proposal["sl"],
         "tp": proposal["tp"],
         "deviation": 20,
@@ -102,10 +145,12 @@ def execute_trade(
     if result is None:
         code, comment = mt5.last_error()
         proposals.update_proposal_status(proposal_id, "failed", {"mt5_code": code, "mt5_comment": comment})
+        audit.log_event("trade_failed", {"proposal_id": proposal_id, "mt5_code": code, "mt5_comment": comment})
         return {"error": f"order_send failed: {comment} (code {code})"}
 
     if result.retcode != mt5.TRADE_RETCODE_DONE:
         proposals.update_proposal_status(proposal_id, "failed", {"mt5_code": result.retcode, "mt5_comment": result.comment})
+        audit.log_event("trade_failed", {"proposal_id": proposal_id, "mt5_code": result.retcode, "mt5_comment": result.comment})
         return {"error": f"Order rejected: {result.comment} (code {result.retcode})"}
 
     proposals.update_proposal_status(proposal_id, "executed", {
@@ -113,6 +158,7 @@ def execute_trade(
         "lot_size": lot_size,
         "price": result.price,
     })
+    audit.log_event("trade_executed", {"proposal_id": proposal_id, "ticket": result.order, "lot_size": lot_size, "price": result.price})
     return {
         "status": "executed",
         "ticket": result.order,
