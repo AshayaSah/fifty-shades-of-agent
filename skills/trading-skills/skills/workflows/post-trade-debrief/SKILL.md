@@ -1,6 +1,6 @@
 ---
 name: post-trade-debrief
-description: Orchestrate a disciplined post-trade workflow for the fifty-shades-of-agent portfolio by reconstructing the original plan, reviewing execution and rule adherence via MT5 position history, and deciding whether the lesson is trade-specific or part of a repeatable pattern.
+description: Post-trade review: reconstruct the plan, check execution and rule adherence, and extract a portable lesson.
 ---
 
 # Post-Trade Debrief

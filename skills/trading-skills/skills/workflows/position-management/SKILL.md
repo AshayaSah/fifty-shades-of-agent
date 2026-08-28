@@ -1,6 +1,6 @@
 ---
 name: position-management
-description: Review an open Exness MT5 position for the fifty-shades-of-agent portfolio and decide whether to hold, trim, tighten risk, or exit by comparing live price behavior against the original thesis, technical invalidation, and news catalyst risk.
+description: Decide hold / trim / tighten / exit on an open MT5 position by checking live price against thesis, invalidation, and catalyst risk.
 ---
 
 # Position Management

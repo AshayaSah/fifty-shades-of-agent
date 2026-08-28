@@ -1,6 +1,6 @@
 ---
 name: portfolio-risk-review
-description: Orchestrate a whole-book risk review for the fifty-shades-of-agent portfolio by checking open-position concentration, correlated exposure, catalyst clustering, and live MT5 fragility before the user adds, holds, or reduces risk.
+description: Whole-book risk review: concentration, correlation, catalyst clustering, and live MT5 fragility before adding or keeping exposure.
 ---
 
 # Portfolio Risk Review

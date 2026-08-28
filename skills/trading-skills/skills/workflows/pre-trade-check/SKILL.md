@@ -1,6 +1,6 @@
 ---
 name: pre-trade-check
-description: Orchestrate a disciplined pre-trade workflow for the fifty-shades-of-agent portfolio by routing a trade idea through news sentiment, technical verdict, and MT5 execution guards to decide whether the trade is ready, not ready, or should be reworked before propose_trade/execute_trade.
+description: Pre-trade go/no-go gate: route a trade idea through news sentiment, technical verdict, and MT5 risk guards before propose_trade.
 ---
 
 # Pre-Trade Check

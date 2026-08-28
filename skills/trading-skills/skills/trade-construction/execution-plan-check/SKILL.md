@@ -1,6 +1,6 @@
 ---
 name: execution-plan-check
-description: Review whether a trade plan is operationally executable on the fifty-shades-of-agent Exness MT5 book by checking symbol resolution, order logic, safety guards, proposal expiry, and position capacity before propose_trade/execute_trade are called.
+description: Pre-flight a plan for executability: symbol resolution, safety guards, proposal expiry, and position capacity before propose_trade.
 ---
 
 # Execution Plan Check

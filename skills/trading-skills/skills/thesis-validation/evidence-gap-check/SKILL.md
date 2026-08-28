@@ -1,6 +1,6 @@
 ---
 name: evidence-gap-check
-description: Identify the most important missing facts, assumptions, and unresolved questions for a fifty-shades-of-agent trade idea before it is trusted, sized, or acted on, using news-scraper and technical-analyst coverage to rank what is actually unknown.
+description: Rank missing facts, assumptions, and open questions by decision impact before an idea is sized or acted on.
 ---
 
 # Evidence Gap Check

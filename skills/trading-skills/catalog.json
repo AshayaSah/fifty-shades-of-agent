@@ -2,62 +2,62 @@
   "skills": [
     {
       "name": "pre-trade-check",
-      "path": "skills/workflows/pre-trade-check",
-      "description": "Orchestrate a disciplined pre-trade workflow for the fifty-shades-of-agent portfolio by routing a trade idea through news sentiment, technical verdict, and MT5 execution guards to decide whether the trade is ready, not ready, or should be reworked before propose_trade/execute_trade.",
+      "path": "skills/trading-skills/skills/workflows/pre-trade-check",
+      "description": "Pre-trade go/no-go gate: route a trade idea through news sentiment, technical verdict, and MT5 risk guards before propose_trade.",
       "docs_path": null
     },
     {
       "name": "portfolio-risk-review",
-      "path": "skills/workflows/portfolio-risk-review",
-      "description": "Orchestrate a whole-book risk review for the fifty-shades-of-agent portfolio by checking open-position concentration, correlated exposure, catalyst clustering, and live MT5 fragility before the user adds, holds, or reduces risk.",
+      "path": "skills/trading-skills/skills/workflows/portfolio-risk-review",
+      "description": "Whole-book risk review: concentration, correlation, catalyst clustering, and live MT5 fragility before adding or keeping exposure.",
       "docs_path": null
     },
     {
       "name": "position-management",
-      "path": "skills/workflows/position-management",
-      "description": "Review an open Exness MT5 position for the fifty-shades-of-agent portfolio and decide whether to hold, trim, tighten risk, or exit by comparing live price behavior against the original thesis, technical invalidation, and news catalyst risk.",
+      "path": "skills/trading-skills/skills/workflows/position-management",
+      "description": "Decide hold / trim / tighten / exit on an open MT5 position by checking live price against thesis, invalidation, and catalyst risk.",
       "docs_path": null
     },
     {
       "name": "post-trade-debrief",
-      "path": "skills/workflows/post-trade-debrief",
-      "description": "Orchestrate a disciplined post-trade workflow for the fifty-shades-of-agent portfolio by reconstructing the original plan, reviewing execution and rule adherence via MT5 position history, and deciding whether the lesson is trade-specific or part of a repeatable pattern.",
+      "path": "skills/trading-skills/skills/workflows/post-trade-debrief",
+      "description": "Post-trade review: reconstruct the plan, check execution and rule adherence, and extract a portable lesson.",
       "docs_path": null
     },
     {
       "name": "execution-plan-check",
-      "path": "skills/trade-construction/execution-plan-check",
-      "description": "Review whether a trade plan is operationally executable on the fifty-shades-of-agent Exness MT5 book by checking symbol resolution, order logic, safety guards, proposal expiry, and position capacity before propose_trade/execute_trade are called.",
+      "path": "skills/trading-skills/skills/trade-construction/execution-plan-check",
+      "description": "Pre-flight a plan for executability: symbol resolution, safety guards, proposal expiry, and position capacity before propose_trade.",
       "docs_path": null
     },
     {
       "name": "position-sizing",
-      "path": "skills/trade-construction/position-sizing",
-      "description": "Compute a conservative MT5 position size for the fifty-shades-of-agent portfolio from account equity, risk budget, entry, stop, and the trader server's max risk guard, expressed as risk_percent for execute_trade.",
+      "path": "skills/trading-skills/skills/trade-construction/position-sizing",
+      "description": "Compute a conservative risk_percent for execute_trade from equity, risk budget, entry, stop, and the max-risk guard.",
       "docs_path": null
     },
     {
       "name": "risk-reward-sanity-check",
-      "path": "skills/trade-construction/risk-reward-sanity-check",
-      "description": "Test whether a proposed entry, stop, and target structure for the fifty-shades-of-agent portfolio is coherent, asymmetric enough, and vulnerable to obvious failure modes before propose_trade is called.",
+      "path": "skills/trading-skills/skills/trade-construction/risk-reward-sanity-check",
+      "description": "Test entry/stop/target coherence and asymmetry (R-multiple, stop placement, target realism) before propose_trade.",
       "docs_path": null
     },
     {
       "name": "thesis-validation",
-      "path": "skills/thesis-validation/thesis-validation",
-      "description": "Pressure-test a trade or investment thesis for the fifty-shades-of-agent portfolio by clarifying the core claim, evidence, invalidation, timeframe, and dependency chain using news-scraper sentiment and technical-analyst verdict before it becomes an entry, stop, or size.",
+      "path": "skills/trading-skills/skills/thesis-validation/thesis-validation",
+      "description": "Pressure-test a trade thesis: core claim, evidence vs assumption, invalidation, timeframe, and dependencies before sizing.",
       "docs_path": null
     },
     {
       "name": "evidence-gap-check",
-      "path": "skills/thesis-validation/evidence-gap-check",
-      "description": "Identify the most important missing facts, assumptions, and unresolved questions for a fifty-shades-of-agent trade idea before it is trusted, sized, or acted on, using news-scraper and technical-analyst coverage to rank what is actually unknown.",
+      "path": "skills/trading-skills/skills/thesis-validation/evidence-gap-check",
+      "description": "Rank missing facts, assumptions, and open questions by decision impact before an idea is sized or acted on.",
       "docs_path": null
     },
     {
       "name": "watchlist-review",
-      "path": "skills/idea-discovery/watchlist-review",
-      "description": "Review a watchlist for the fifty-shades-of-agent portfolio and rank which names deserve active attention, background monitoring, or removal by running news-scraper sentiment and technical-analyst verdict across each symbol and weighing catalysts, tradability, and redundancy.",
+      "path": "skills/trading-skills/skills/idea-discovery/watchlist-review",
+      "description": "Triage a watchlist: rank names into active / background / drop using sentiment, technicals, catalysts, and redundancy.",
       "docs_path": null
     }
   ]

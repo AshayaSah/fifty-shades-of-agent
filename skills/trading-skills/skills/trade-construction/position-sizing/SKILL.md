@@ -1,6 +1,6 @@
 ---
 name: position-sizing
-description: Compute a conservative MT5 position size for the fifty-shades-of-agent portfolio from account equity, risk budget, entry, stop, and the trader server's max risk guard, expressed as risk_percent for execute_trade.
+description: Compute a conservative risk_percent for execute_trade from equity, risk budget, entry, stop, and the max-risk guard.
 ---
 
 # Position Sizing

@@ -1,6 +1,6 @@
 ---
 name: risk-reward-sanity-check
-description: Test whether a proposed entry, stop, and target structure for the fifty-shades-of-agent portfolio is coherent, asymmetric enough, and vulnerable to obvious failure modes before propose_trade is called.
+description: Test entry/stop/target coherence and asymmetry (R-multiple, stop placement, target realism) before propose_trade.
 ---
 
 # Risk-Reward Sanity Check

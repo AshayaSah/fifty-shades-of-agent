@@ -1,6 +1,6 @@
 ---
 name: watchlist-review
-description: Review a watchlist for the fifty-shades-of-agent portfolio and rank which names deserve active attention, background monitoring, or removal by running news-scraper sentiment and technical-analyst verdict across each symbol and weighing catalysts, tradability, and redundancy.
+description: Triage a watchlist: rank names into active / background / drop using sentiment, technicals, catalysts, and redundancy.
 ---
 
 # Watchlist Review

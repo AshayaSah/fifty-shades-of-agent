@@ -1,6 +1,6 @@
 ---
 name: thesis-validation
-description: Pressure-test a trade or investment thesis for the fifty-shades-of-agent portfolio by clarifying the core claim, evidence, invalidation, timeframe, and dependency chain using news-scraper sentiment and technical-analyst verdict before it becomes an entry, stop, or size.
+description: Pressure-test a trade thesis: core claim, evidence vs assumption, invalidation, timeframe, and dependencies before sizing.
 ---
 
 # Thesis Validation
