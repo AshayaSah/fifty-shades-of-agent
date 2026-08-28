@@ -8,7 +8,6 @@ import main
 
 SYMBOL = "EURUSDm"
 RISK_PERCENT = 1.0
-APPROVAL_TOKEN = main.PLACEHOLDER_TOKEN
 
 
 def test_e2e_live_trade():
@@ -30,11 +29,12 @@ def test_e2e_live_trade():
     proposal_id = prop["id"]
     print(f"[1] Propose trade -> id={proposal_id} status={prop['status']}")
 
-    # 2. Simulate approval (Phase 6 placeholder mechanism)
-    print(f"[2] Approval -> token={APPROVAL_TOKEN}")
+    # 2. Guards (approval token removed — safety guards still enforced)
+    cfg = main.get_safety_config()
+    print(f"[2] Safety config -> {cfg}")
 
-    # 3. Execute the trade
-    result = main.execute_trade(proposal_id, RISK_PERCENT, APPROVAL_TOKEN)
+    # 3. Execute the trade (no approval token)
+    result = main.execute_trade(proposal_id, RISK_PERCENT)
     assert result.get("status") == "executed", f"execute_trade failed: {result}"
     ticket = result["ticket"]
     print(f"[3] Execute trade -> status={result['status']} ticket={ticket} lot={result['lot_size']}")

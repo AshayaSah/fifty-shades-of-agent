@@ -15,9 +15,6 @@ PROPOSAL_EXPIRY_MINUTES = 15
 
 _kill_switch_on = False
 
-# TODO: Replace "PLACEHOLDER_TOKEN" with real TrueForge approval wiring in Phase 6.
-PLACEHOLDER_TOKEN = "PLACEHOLDER_TOKEN"
-
 mcp = MCPServer("exness-mcp-trader")
 
 
@@ -75,15 +72,44 @@ def kill_switch(state: str) -> dict:
     audit.log_event("kill_switch", {"state": state})
     return {"kill_switch": state}
 
+
+@mcp.tool(structured_output=False)
+def get_safety_config() -> dict:
+    """Return current trading safety limits and kill-switch state."""
+    return {
+        "kill_switch": "on" if _kill_switch_on else "off",
+        "max_risk_percent": MAX_RISK_PERCENT,
+        "max_concurrent_positions": MAX_CONCURRENT_POSITIONS,
+        "proposal_expiry_minutes": PROPOSAL_EXPIRY_MINUTES,
+    }
+
+
+@mcp.tool(structured_output=False)
+def resolve_symbol(query: str) -> dict:
+    """Resolve a human-friendly query (ticker, currency pair, or common name)
+    into exact MT5 symbol(s). Use the returned 'symbol' value for propose_trade.
+
+    Examples: 'Apple' -> AAPLm, 'EUR/USD' or 'EURUSD' -> EURUSDm,
+    'gold' -> XAUUSDm, 'S&P 500' -> US500m, 'bitcoin' -> BTCUSDm.
+    """
+    matches = mt5_client.search_symbols(query)
+    if not matches:
+        return {"error": f"No symbol found for query '{query}'.", "matches": []}
+    return {"query": query, "matches": matches}
+
+
 @mcp.tool(structured_output=False)
 def execute_trade(
     proposal_id: str,
     risk_percent: float,
-    approval_token: str,
 ) -> dict:
-    """Execute a pending trade proposal via MT5. Requires approval token."""
+    """Execute a pending trade proposal via MT5.
+
+    Subject to safety guards: kill switch, max risk %, position cap, and
+    proposal expiry. Check get_safety_config() first.
+    """
     try:
-        return _execute_trade(proposal_id, risk_percent, approval_token)
+        return _execute_trade(proposal_id, risk_percent)
     except Exception as exc:
         audit.log_event(
             "trade_failed",
@@ -92,11 +118,7 @@ def execute_trade(
         return {"error": f"execute_trade failed: {exc}"}
 
 
-def _execute_trade(proposal_id: str, risk_percent: float, approval_token: str) -> dict:
-    if approval_token != PLACEHOLDER_TOKEN:
-        audit.log_event("trade_rejected", {"proposal_id": proposal_id, "reason": "invalid_approval_token"})
-        return {"error": "Invalid approval token."}
-
+def _execute_trade(proposal_id: str, risk_percent: float) -> dict:
     if _kill_switch_on:
         audit.log_event("trade_rejected", {"proposal_id": proposal_id, "reason": "kill_switch_on"})
         return {"error": "Kill switch is ON. All trading is halted."}
