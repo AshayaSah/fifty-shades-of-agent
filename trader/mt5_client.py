@@ -1,59 +1,199 @@
-import MetaTrader5 as mt5
-from dotenv import load_dotenv
 import os
+import time
+
+from dotenv import load_dotenv
 
 
 class MT5ConnectionError(Exception):
-    """Raised when MT5 terminal fails to initialize or is not running."""
+    """Raised when the MT5 backend fails to initialize or is unreachable."""
+
+
+def _is_linux() -> bool:
+    return os.name == "posix"
+
+
+# ---------------------------------------------------------------------------
+# Linux backend: mt5linux bridge -> separate Wine + MetaTrader 5 sidecar.
+# ---------------------------------------------------------------------------
+def _linux_backend():
+    import rpyc
+
+    class _ExternalSidecarContainer:
+        """Minimal RPyC shim that talks to an already-running mt5 sidecar.
+
+        mt5linux's release tries to spawn its own Docker container on init. In
+        our deployment the Wine + MT5 sidecar is a separate compose service, so
+        we connect straight to its RPyC server using the same protocol
+        (rpyc.classic) the library uses internally.
+        """
+
+        def __init__(self, host: str, port: int = 18812, timeout: int = 300):
+            self.host = host
+            self.port = port
+            self._conn = None
+
+            start = time.time()
+            last_error = None
+            while time.time() - start < timeout:
+                try:
+                    self._conn = rpyc.classic.connect(host, port)
+                    self._conn._config["sync_request_timeout"] = timeout
+                    break
+                except Exception as exc:  # noqa: BLE001 - retry loop
+                    last_error = exc
+                    time.sleep(2)
+
+            if self._conn is None:
+                raise MT5ConnectionError(
+                    f"Could not reach MT5 sidecar at {host}:{port} within "
+                    f"{timeout}s. Last error: {last_error}. "
+                    "Is the mt5-sidecar service running?"
+                )
+
+            # Match mt5linux's bootstrap so the standard proxy methods work.
+            self.execute("import sys; sys.path.append('C:\\\\mt5libs')")
+            self.execute("import MetaTrader5 as mt5")
+            self.execute("import datetime")
+
+        def eval(self, code: str):
+            return rpyc.classic.obtain(self._conn.eval(code))
+
+        def execute(self, code: str):
+            self._conn.execute(code)
+
+    def _make_bridge(host: str, port: int = 18812, timeout: int = 300):
+        import mt5linux
+
+        mt5 = object.__new__(mt5linux.MetaTrader5)
+        # Skip the library's __init__ (which spawns a container) and wire our
+        # own shim; every inherited proxy method reads self._container.eval.
+        mt5._container = _ExternalSidecarContainer(host, port, timeout)
+        return mt5
+
+    return _make_bridge
+
+
+# ---------------------------------------------------------------------------
+# Windows backend: official native MetaTrader5 package + local MT5 terminal.
+# ---------------------------------------------------------------------------
+def _windows_backend():
+    import MetaTrader5 as _mt5
+
+    class _NativeMT5:
+        """Thin facade over the native MetaTrader5 module so callers get a
+        uniform instance-like API across Linux (bridge) and Windows (native)."""
+
+        def initialize(self, *args, **kwargs):
+            return _mt5.initialize(*args, **kwargs)
+
+        def shutdown(self, *args, **kwargs):
+            return _mt5.shutdown(*args, **kwargs)
+
+        def last_error(self):
+            return _mt5.last_error()
+
+        def account_info(self, *args, **kwargs):
+            return _mt5.account_info(*args, **kwargs)
+
+        def positions_get(self, *args, **kwargs):
+            return _mt5.positions_get(*args, **kwargs)
+
+        def symbols_get(self, *args, **kwargs):
+            return _mt5.symbols_get(*args, **kwargs)
+
+        def symbol_info(self, *args, **kwargs):
+            return _mt5.symbol_info(*args, **kwargs)
+
+        def symbol_info_tick(self, *args, **kwargs):
+            return _mt5.symbol_info_tick(*args, **kwargs)
+
+        def order_send(self, *args, **kwargs):
+            return _mt5.order_send(*args, **kwargs)
+
+        def __getattr__(self, name):
+            # Constants (ORDER_TYPE_BUY, TRADE_ACTION_DEAL, ...) come from the
+            # module namespace on Windows.
+            return getattr(_mt5, name)
+
+    return _NativeMT5()
 
 
 load_dotenv()
 
-_initialized = False
+_bridge = None
+_bridge_params: dict | None = None
+
+
+def bridge():
+    """Return the shared MT5 facade for the current platform.
+
+    - Linux  : mt5linux proxy bound to the Wine/MT5 sidecar.
+    - Windows: native MetaTrader5 wrapper against the local MT5 terminal.
+    Raises ImportError if the backend dependency is missing on this platform.
+    """
+    global _bridge, _bridge_params
+
+    if _is_linux():
+        host = os.getenv("MT5_HOST", "mt5-sidecar")
+        port = int(os.getenv("MT5_PORT", "18812"))
+        timeout = int(os.getenv("MT5_CONNECT_TIMEOUT", "300"))
+        params = ("linux", host, port, timeout)
+
+        if _bridge is None or _bridge_params != params:
+            _bridge = _linux_backend()(host, port, timeout)
+            _bridge_params = params
+        return _bridge
+
+    if _bridge is None or _bridge_params != ("windows",):
+        _bridge = _windows_backend()
+        _bridge_params = ("windows",)
+    return _bridge
 
 
 def connect() -> None:
-    global _initialized
-    if _initialized:
-        return
+    """Ensure the MT5 backend is initialized and the terminal reachable."""
+    mt5 = bridge()
 
     login = os.getenv("EXNESS_LOGIN")
     password = os.getenv("EXNESS_PASSWORD")
     server = os.getenv("EXNESS_SERVER")
 
-    missing = [
-        name
-        for name, val in [
-            ("EXNESS_LOGIN", login),
-            ("EXNESS_PASSWORD", password),
-            ("EXNESS_SERVER", server),
-        ]
-        if not val
-    ]
-    if missing:
-        raise MT5ConnectionError(
-            f"Missing environment variables: {', '.join(missing)}. "
-            "Set them in .env or your environment."
+    if _is_linux():
+        # The Wine/MT5 sidecar may already be auto-logged-in via its own env
+        # vars; a no-arg initialize() is enough when that's the case.
+        ok = mt5.initialize() if not (login and server) else mt5.initialize(
+            login=int(login), password=password, server=server
         )
+    else:
+        # Native Windows: initialize against the local MT5 terminal.
+        ok = mt5.initialize()
+        if ok and login and server:
+            authorized = mt5.initialize(
+                login=int(login), password=password, server=server
+            )
+            ok = authorized
 
-    if not mt5.initialize(login=int(login), password=password, server=server):
+    if not ok:
         code, comment = mt5.last_error()
         raise MT5ConnectionError(
             f"MT5 initialize failed: {comment} (code {code}). "
-            "Make sure MetaTrader 5 terminal is running and logged in."
+            "Ensure the MT5 terminal / sidecar is running and logged in."
         )
-
-    _initialized = True
 
 
 def disconnect() -> None:
-    global _initialized
-    if _initialized:
-        mt5.shutdown()
-        _initialized = False
+    global _bridge, _bridge_params
+    if _bridge is not None:
+        try:
+            _bridge.shutdown()
+        except Exception:  # noqa: BLE001 - best effort on teardown
+            pass
+    _bridge = None
+    _bridge_params = None
 
 
 def get_account_info() -> dict:
+    mt5 = bridge()
     connect()
     info = mt5.account_info()
     if info is None:
@@ -72,6 +212,7 @@ def get_account_info() -> dict:
 
 
 def get_positions() -> list[dict]:
+    mt5 = bridge()
     connect()
     positions = mt5.positions_get()
     if positions is None:
@@ -171,6 +312,7 @@ def symbol_category(symbol: str) -> str:
     """
     info = None
     try:
+        mt5 = bridge()
         connect()
         info = mt5.symbol_info(symbol)
     except Exception:
@@ -193,6 +335,7 @@ def search_symbols(query: str, catalog: list[str] | None = None) -> list[dict]:
     symbol list when running against a connected terminal.
     """
     if catalog is None:
+        mt5 = bridge()
         connect()
         catalog = [s.name for s in mt5.symbols_get()]
     if not catalog:
@@ -237,6 +380,7 @@ def _make_match(symbol: str) -> dict:
 
 def get_symbol_spec(symbol: str) -> dict:
     """Fetch pip value and point size for a symbol from MT5."""
+    mt5 = bridge()
     connect()
     info = mt5.symbol_info(symbol)
     if info is None:

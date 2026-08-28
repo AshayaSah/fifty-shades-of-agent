@@ -6,7 +6,8 @@ readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
     "mcp[cli]>=2.1.0",
-    "metatrader5>=5.0.6090",
+    "mt5linux>=1.1.1; sys_platform == 'linux'",
+    "metatrader5>=5.0.6090; sys_platform == 'win32'",
     "psycopg[binary]>=3.3.4",
     "python-dotenv>=1.2.3",
 ]
