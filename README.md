@@ -36,9 +36,113 @@ trade — while every layer persists its own state to its own database.
 ```
 fifty-shades-of-agent/
 ├── news-scraper/          # news + sentiment + entities (MCP, streamable-http)
+│   └── Dockerfile         # multi-stage uv build (dev / prod)
 ├── technical-analyst/     # price data + technical analysis (MCP)
+│   └── Dockerfile         # multi-stage uv build (dev / prod)
 ├── trader/                # Exness MT5 order execution (MCP)
+│   └── Dockerfile         # multi-stage uv build (dev / prod)
+├── docker-compose.yml     # development environment (with local Postgres)
+├── docker-compose.prod.yml# production environment (bring-your-own DB)
 └── README.md              # this overview
 ```
 
-Each subfolder has its own `README.md` with setup, tools, and configuration details.
+Each subfolder has its own `Dockerfile` and `README.md` with setup, tools, and
+configuration details.
+
+## Running locally (without Docker)
+
+Each service is a separate `uv` project. From the repo root:
+
+```sh
+uv run --project news-scraper python news-scraper/main.py
+uv run --project technical-analyst python technical-analyst/main.py
+uv run --project trader python trader/main.py
+```
+
+Or run all three with a process manager, as the root `Procfile` does
+(`foreman start` / `overmind start`).
+
+## Running with Docker
+
+Each service has its own multi-stage `Dockerfile` built around
+[`uv`](https://docs.astral.sh/uv/). Every Dockerfile produces both a
+**development** and a **production** image, selected with `--target`, so the
+`news-scraper` Dockerfile (which bundles the spaCy model) stays separate from
+the leaner `technical-analyst` and `trader` ones.
+
+### Building an image directly
+
+Each image is built from within its own service directory:
+
+```sh
+# Development (includes pytest, editable installs)
+docker build --target dev -t fifty/news-scraper:dev ./news-scraper
+
+# Production (runtime-only, non-root user, no source mount)
+docker build --target prod -t fifty/technical-analyst:prod ./technical-analyst
+```
+
+### Development environment — `docker-compose.yml`
+
+Boots all three services plus a local Postgres, mounts source as a volume for
+hot-reload, and configures each service to use the local database:
+
+```sh
+cp news-scraper/.env.example news-scraper/.env   # fill in keys as needed
+cp technical-analyst/.env.example technical-analyst/.env
+cp trader/.env.example trader/.env
+
+docker compose up --build
+```
+
+Host ports are mapped so services don't clash:
+
+| Service            | Container port | Host port |
+| ------------------ | -------------- | --------- |
+| `db` (Postgres)    | 5432           | 5432      |
+| `news-scraper`     | 8000           | 8001      |
+| `technical-analyst`| 8000           | 8002      |
+| `trader` (Win-only)| 8000           | 8003      |
+
+Run a single service with `docker compose up --build <service>`, and tear
+everything down (including the DB volume) with `docker compose down -v`.
+
+> **Note:** local Postgres is a convenience for development. In production the
+> services talk to your Neon instance, so no database container is included.
+
+### Production environment — `docker-compose.prod.yml`
+
+Same set of per-service Dockerfiles, but the `prod` **target**: no source
+volumes, restart policies, and a bring-your-own database. Set the required
+values in a `.env.prod` file (derived from each service's `.env.example`):
+
+```sh
+# .env.prod
+NEWS_DATABASE_URL=postgresql://user:pass@host/db
+ANALYST_DATABASE_URL=postgresql://user:pass@host/db?sslmode=require
+TRADER_DATABASE_URL=postgresql://user:pass@host/db
+TWELVE_DATA_API_KEY=...
+EXNESS_LOGIN=...
+EXNESS_PASSWORD=...
+EXNESS_SERVER=...
+```
+
+Then deploy:
+
+```sh
+docker compose -f docker-compose.prod.yml --env-file .env.prod up --build -d
+```
+
+### Notes
+
+- **`trader`** is Windows-only. The `metatrader5` package ships no Linux wheel
+  and is imported at module load (`main.py`, `mt5_client.py`), so its image only
+  **builds and runs on a Windows Docker host**. It is commented out in both
+  compose files by default; enable it (and port `8003`) on a Windows machine to
+  containerize the execution layer.
+- **`news-scraper`** bundles the spaCy `en_core_web_sm` model into the image at
+  build time (downloaded in the `base` stage of `news-scraper/Dockerfile`). The
+  large PyTorch/transformers FinBERT model is fetched lazily on first sentiment
+  call, which makes the first image build and first scrape slower.
+- Secrets are never baked into images — everything comes from `env_file` /
+  environment variables at runtime.
