@@ -5,6 +5,9 @@ import mt5_client
 import proposals
 import sizing
 import audit
+import db
+
+db.init_db()
 
 MAX_RISK_PERCENT = 2.0
 MAX_CONCURRENT_POSITIONS = 3
@@ -72,7 +75,6 @@ def kill_switch(state: str) -> dict:
     audit.log_event("kill_switch", {"state": state})
     return {"kill_switch": state}
 
-
 @mcp.tool(structured_output=False)
 def execute_trade(
     proposal_id: str,
@@ -80,6 +82,17 @@ def execute_trade(
     approval_token: str,
 ) -> dict:
     """Execute a pending trade proposal via MT5. Requires approval token."""
+    try:
+        return _execute_trade(proposal_id, risk_percent, approval_token)
+    except Exception as exc:
+        audit.log_event(
+            "trade_failed",
+            {"proposal_id": proposal_id, "reason": "exception", "error": str(exc)},
+        )
+        return {"error": f"execute_trade failed: {exc}"}
+
+
+def _execute_trade(proposal_id: str, risk_percent: float, approval_token: str) -> dict:
     if approval_token != PLACEHOLDER_TOKEN:
         audit.log_event("trade_rejected", {"proposal_id": proposal_id, "reason": "invalid_approval_token"})
         return {"error": "Invalid approval token."}
@@ -126,6 +139,8 @@ def execute_trade(
     mt5_client.connect()
     order_type = mt5.ORDER_TYPE_BUY if proposal["direction"] == "buy" else mt5.ORDER_TYPE_SELL
     tick = mt5.symbol_info_tick(proposal["symbol"])
+    if tick is None:
+        return {"error": f"No tick data for symbol {proposal['symbol']}."}
     request = {
         "action": mt5.TRADE_ACTION_DEAL,
         "symbol": proposal["symbol"],
@@ -170,6 +185,14 @@ def execute_trade(
 @mcp.tool(structured_output=False)
 def close_position(ticket: int) -> dict:
     """Close an open position by its MT5 ticket."""
+    try:
+        return _close_position(ticket)
+    except Exception as exc:
+        audit.log_event("close_failed", {"ticket": ticket, "reason": "exception", "error": str(exc)})
+        return {"error": f"close_position failed: {exc}"}
+
+
+def _close_position(ticket: int) -> dict:
     if _kill_switch_on:
         audit.log_event("close_rejected", {"ticket": ticket, "reason": "kill_switch_on"})
         return {"error": "Kill switch is ON. All trading is halted."}
@@ -182,6 +205,8 @@ def close_position(ticket: int) -> dict:
 
     order_type = mt5.ORDER_TYPE_SELL if position.type == mt5.POSITION_TYPE_BUY else mt5.ORDER_TYPE_BUY
     tick = mt5.symbol_info_tick(position.symbol)
+    if tick is None:
+        return {"error": f"No tick data for symbol {position.symbol}."}
     request = {
         "action": mt5.TRADE_ACTION_DEAL,
         "symbol": position.symbol,
