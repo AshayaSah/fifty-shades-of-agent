@@ -102,7 +102,9 @@ Host ports are mapped so services don't clash:
 | `db` (Postgres)    | 5432           | 5432      |
 | `news-scraper`     | 8000           | 8001      |
 | `technical-analyst`| 8000           | 8002      |
-| `trader` (Win-only)| 8000           | 8003      |
+| `trader`           | 8000           | 8003      |
+| `mt5-sidecar` (RPyC)| 18812         | 18812     |
+| `mt5-sidecar` (noVNC)| 8080         | 8080      |
 
 Run a single service with `docker compose up --build <service>`, and tear
 everything down (including the DB volume) with `docker compose down -v`.
@@ -125,6 +127,7 @@ TWELVE_DATA_API_KEY=...
 EXNESS_LOGIN=...
 EXNESS_PASSWORD=...
 EXNESS_SERVER=...
+VNC_PASSWORD=...        # noVNC password for the MT5 sidecar
 ```
 
 Then deploy:
@@ -133,16 +136,35 @@ Then deploy:
 docker compose -f docker-compose.prod.yml --env-file .env.prod up --build -d
 ```
 
-### Notes
+## Notes
 
-- **`trader`** is Windows-only. The `metatrader5` package ships no Linux wheel
-  and is imported at module load (`main.py`, `mt5_client.py`), so its image only
-  **builds and runs on a Windows Docker host**. It is commented out in both
-  compose files by default; enable it (and port `8003`) on a Windows machine to
-  containerize the execution layer.
+- **`trader` runs on both Linux and Windows**.
+  - **Linux**: uses the `mt5linux` bridge and connects over RPyC to a separate
+    Wine + MetaTrader 5 sidecar (`mt5-sidecar`, the `lprett/mt5linux` image).
+    The sidecar auto-logs into MT5 via `EXNESS_LOGIN`/`EXNESS_PASSWORD`/
+    `EXNESS_SERVER`.
+  - **Windows**: uses the native `metatrader5` package directly against the
+    local MT5 terminal (no sidecar).
+  - Dependency selection is automatic via platform markers in `pyproject.toml`
+    (`mt5linux` on `linux`, `metatrader5` on `win32`), and `mt5_client.py`
+    picks the backend at runtime.
 - **`news-scraper`** bundles the spaCy `en_core_web_sm` model into the image at
   build time (downloaded in the `base` stage of `news-scraper/Dockerfile`). The
   large PyTorch/transformers FinBERT model is fetched lazily on first sentiment
   call, which makes the first image build and first scrape slower.
-- Secrets are never baked into images — everything comes from `env_file` /
+- **Secrets are never baked into images** — everything comes from `env_file` /
   environment variables at runtime.
+
+## Deploying to Render / Vercel
+
+- **`render.json`** (Render Blueprint) defines all three MCP servers as Docker
+  web services. Note that Render **cannot host the Wine + MetaTrader 5
+  sidecar**, so the `trader` service boots and exposes its MCP tools but live
+  order execution requires you to point `MT5_HOST`/`MT5_PORT` at an externally
+  hosted `mt5-sidecar` (or run the sidecar elsewhere).
+- **`vercel.json`** is a status-only deployment. Vercel is designed for
+  serverless functions and static sites, which cannot host these long-lived,
+  persistent `streamable-http` MCP servers. `api/news_scraper.py`,
+  `api/technical_analyst.py`, and `api/trader.py` expose minimal serverless
+  status/health handlers with a `501` note. To serve the real MCP endpoints,
+  deploy with Render or Docker Compose instead.

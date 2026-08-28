@@ -11,9 +11,10 @@
 #     docker build --target dev  -t fifty/trader:dev  .
 #     docker build --target prod -t fifty/trader:prod .
 #
-#   NOTE: The `metatrader5` package is Windows-bound, so live order execution
-#   will not work inside a Linux container. The server still boots and exposes
-#   its MCP tools.
+#   The trader uses the `mt5linux` bridge, so it runs on Linux and talks over
+#   RPyC to a separate Wine + MetaTrader 5 sidecar container (see the compose
+#   files, `mt5-sidecar` service). Live order execution therefore needs that
+#   sidecar to be up and reachable at MT5_HOST:MT5_PORT.
 
 FROM ghcr.io/astral-sh/uv:python3.14-bookworm-slim AS base
 
@@ -51,8 +52,7 @@ CMD ["sh", "-c", "uv run --active python /app/main.py"]
 FROM base AS prod
 
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync \
-    && uv cache clean
+    uv sync
 
 # Run as a non-privileged user.
 RUN useradd --create-home --shell /usr/sbin/nologin appuser \
