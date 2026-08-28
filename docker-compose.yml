@@ -1,0 +1,85 @@
+# Development environment
+#   - Builds each service from its own service-local Dockerfile (dev target)
+#   - Mounts source as a volume for hot-reload
+#   - Boots a local Postgres for development (override with DATABASE_URL if using Neon)
+#
+# Usage:
+#   docker compose up --build
+#   docker compose up --build news-scraper          # run a single service
+#   docker compose down -v                          # tear down + drop the DB volume
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: fsoa-db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-fifty}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-fifty}
+      POSTGRES_DB: ${POSTGRES_DB:-fifty}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-fifty}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  news-scraper:
+    build:
+      context: ./news-scraper
+      target: dev
+    container_name: fsoa-news-scraper
+    env_file:
+      - news-scraper/.env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-fifty}:${POSTGRES_PASSWORD:-fifty}@db:5432/${POSTGRES_DB:-fifty}
+    volumes:
+      - ./news-scraper:/app
+    ports:
+      - "8001:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  technical-analyst:
+    build:
+      context: ./technical-analyst
+      target: dev
+    container_name: fsoa-technical-analyst
+    env_file:
+      - technical-analyst/.env
+    environment:
+      NEON_DATABASE_URL: postgresql://${POSTGRES_USER:-fifty}:${POSTGRES_PASSWORD:-fifty}@db:5432/${POSTGRES_DB:-fifty}?sslmode=disable
+    volumes:
+      - ./technical-analyst:/app
+    ports:
+      - "8002:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # trader is commented out because it is Windows-only: the `metatrader5`
+  # package ships no Linux wheel and is imported at startup, so its image only
+  # builds on a Windows Docker host. Enable it there for the execution layer:
+  #
+  #   # trader:
+  #   #   build:
+  #   #     context: ./trader
+  #   #     target: dev
+  #   #   container_name: fsoa-trader
+  #   #   env_file:
+  #   #     - trader/.env
+  #   #   environment:
+  #   #     DATABASE_URL: postgresql://${POSTGRES_USER:-fifty}:${POSTGRES_PASSWORD:-fifty}@db:5432/${POSTGRES_DB:-fifty}
+  #   #   volumes:
+  #   #     - ./trader:/app
+  #   #   ports:
+  #   #     - "8003:8000"
+  #   #   depends_on:
+  #   #     db:
+  #   #       condition: service_healthy
+
+volumes:
+  pgdata:
