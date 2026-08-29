@@ -53,16 +53,24 @@ mcp-types==2.1.0
     # via mcp
 mdurl==0.1.2
     # via markdown-it-py
-metatrader5==5.0.6090
+metatrader5==5.0.6147 ; sys_platform == 'win32'
     # via trader
-numpy==2.5.2
-    # via metatrader5
+mt5linux==1.1.1 ; sys_platform == 'linux'
+    # via trader
+numpy==2.5.2 ; sys_platform == 'linux' or sys_platform == 'win32'
+    # via
+    #   metatrader5
+    #   mt5linux
 opentelemetry-api==1.44.0
     # via mcp
 packaging==26.3
     # via pytest
 pluggy==1.6.0
     # via pytest
+plumbum==1.7.0 ; sys_platform == 'linux'
+    # via
+    #   mt5linux
+    #   rpyc
 psycopg==3.3.4
     # via trader
 psycopg-binary==3.3.4 ; implementation_name != 'pypy'
@@ -81,10 +89,13 @@ pygments==2.21.0
     #   rich
 pyjwt==2.13.0
     # via mcp
+pyparsing==3.3.2 ; sys_platform == 'linux'
+    # via mt5linux
 pytest==9.1.1
 python-dotenv==1.2.3
     # via
     #   mcp
+    #   mt5linux
     #   trader
 python-multipart==0.0.32
     # via mcp
@@ -100,6 +111,8 @@ rpds-py==2026.6.3
     # via
     #   jsonschema
     #   referencing
+rpyc==6.0.2 ; sys_platform == 'linux'
+    # via mt5linux
 shellingham==1.5.4
     # via typer
 sse-starlette==3.4.8

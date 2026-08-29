@@ -1,0 +1,64 @@
+{
+  "skills": [
+    {
+      "name": "pre-trade-check",
+      "path": "skills/trading-skills/skills/workflows/pre-trade-check",
+      "description": "Pre-trade go/no-go gate: route a trade idea through news sentiment, technical verdict, and MT5 risk guards before propose_trade.",
+      "docs_path": null
+    },
+    {
+      "name": "portfolio-risk-review",
+      "path": "skills/trading-skills/skills/workflows/portfolio-risk-review",
+      "description": "Whole-book risk review: concentration, correlation, catalyst clustering, and live MT5 fragility before adding or keeping exposure.",
+      "docs_path": null
+    },
+    {
+      "name": "position-management",
+      "path": "skills/trading-skills/skills/workflows/position-management",
+      "description": "Decide hold / trim / tighten / exit on an open MT5 position by checking live price against thesis, invalidation, and catalyst risk.",
+      "docs_path": null
+    },
+    {
+      "name": "post-trade-debrief",
+      "path": "skills/trading-skills/skills/workflows/post-trade-debrief",
+      "description": "Post-trade review: reconstruct the plan, check execution and rule adherence, and extract a portable lesson.",
+      "docs_path": null
+    },
+    {
+      "name": "execution-plan-check",
+      "path": "skills/trading-skills/skills/trade-construction/execution-plan-check",
+      "description": "Pre-flight a plan for executability: symbol resolution, safety guards, proposal expiry, and position capacity before propose_trade.",
+      "docs_path": null
+    },
+    {
+      "name": "position-sizing",
+      "path": "skills/trading-skills/skills/trade-construction/position-sizing",
+      "description": "Compute a conservative risk_percent for execute_trade from equity, risk budget, entry, stop, and the max-risk guard.",
+      "docs_path": null
+    },
+    {
+      "name": "risk-reward-sanity-check",
+      "path": "skills/trading-skills/skills/trade-construction/risk-reward-sanity-check",
+      "description": "Test entry/stop/target coherence and asymmetry (R-multiple, stop placement, target realism) before propose_trade.",
+      "docs_path": null
+    },
+    {
+      "name": "thesis-validation",
+      "path": "skills/trading-skills/skills/thesis-validation/thesis-validation",
+      "description": "Pressure-test a trade thesis: core claim, evidence vs assumption, invalidation, timeframe, and dependencies before sizing.",
+      "docs_path": null
+    },
+    {
+      "name": "evidence-gap-check",
+      "path": "skills/trading-skills/skills/thesis-validation/evidence-gap-check",
+      "description": "Rank missing facts, assumptions, and open questions by decision impact before an idea is sized or acted on.",
+      "docs_path": null
+    },
+    {
+      "name": "watchlist-review",
+      "path": "skills/trading-skills/skills/idea-discovery/watchlist-review",
+      "description": "Triage a watchlist: rank names into active / background / drop using sentiment, technicals, catalysts, and redundancy.",
+      "docs_path": null
+    }
+  ]
+}

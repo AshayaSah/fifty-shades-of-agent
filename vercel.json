@@ -1,0 +1,15 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "version": 2,
+  "name": "fifty-shades-of-agent",
+  "description": "NOT suitable for hosting the live MCP streamable-http servers. Vercel runs short-lived stateless serverless functions and cannot hold persistent sessions (nor host the Wine/MT5 sidecar). These handlers only expose status/health checks. Run the real servers with Docker Compose or Render.",
+  "functions": {
+    "api/news_scraper.py": { "maxDuration": 60 },
+    "api/technical_analyst.py": { "maxDuration": 60 },
+    "api/trader.py": { "maxDuration": 60 }
+  },
+  "buildCommand": null,
+  "outputDirectory": null,
+  "devCommand": null,
+  "framework": null
+}

@@ -47,8 +47,7 @@ CMD ["sh", "-c", "uv run --active python /app/main.py"]
 FROM base AS prod
 
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync \
-    && uv cache clean
+    uv sync
 
 # Run as a non-privileged user.
 RUN useradd --create-home --shell /usr/sbin/nologin appuser \
