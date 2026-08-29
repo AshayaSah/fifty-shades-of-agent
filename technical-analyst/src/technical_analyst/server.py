@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from mcp.server.mcpserver import MCPServer
+from fastmcp import FastMCP
 
 from technical_analyst.analysis.indicators import MIN_CANDLES_REQUIRED, add_core_indicators
 from technical_analyst.analysis.patterns import find_support_resistance
@@ -14,18 +14,18 @@ from technical_analyst.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
-mcp = MCPServer("technical-analyst")
+mcp = FastMCP("technical-analyst")
 router = ProviderRouter()
 cache = TTLCache(ttl_seconds=settings.cache_ttl_seconds)
 
 
-@mcp.tool()
+@mcp.tool
 def ping() -> str:
     """Sanity check tool — confirms the technical-analyst MCP is running."""
     return "technical-analyst MCP is alive"
 
 
-@mcp.tool()
+@mcp.tool
 def get_price_data(symbol: str, interval: str = "1d", lookback_days: int = 90) -> dict:
     """Fetch raw OHLCV price data for a stock symbol.
 
@@ -46,7 +46,7 @@ def get_price_data(symbol: str, interval: str = "1d", lookback_days: int = 90) -
     return series.model_dump(mode="json")
 
 
-@mcp.tool()
+@mcp.tool
 def get_technical_analysis(symbol: str, interval: str = "1d", lookback_days: int = 90) -> dict:
     """Fetch price data and return a full technical analysis for a stock.
 
@@ -126,7 +126,7 @@ def get_technical_analysis(symbol: str, interval: str = "1d", lookback_days: int
     return report.to_dict()
 
 
-@mcp.tool()
+@mcp.tool
 def get_analysis_history(symbol: str, limit: int = 10) -> dict:
     """Return past technical analysis reports for a symbol, most recent
     first. Useful as context — e.g. to see whether the verdict has been
