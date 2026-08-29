@@ -1,0 +1,23 @@
+{
+  "$schema": "https://render.com/schema/render.yaml.json",
+  "name": "news-scraper",
+  "services": [
+    {
+      "type": "web",
+      "name": "news-scraper",
+      "runtime": "docker",
+      "repo": "https://github.com/AshayaSah/fifty-shades-of-agent",
+      "branch": "refactor/fastapi-mcp-migrate",
+      "dockerfilePath": "news-scraper/Dockerfile",
+      "dockerContext": "news-scraper",
+      "region": "oregon",
+      "plan": "free",
+      "autoDeploy": true,
+      "healthCheckPath": "/health",
+      "envVars": [
+        { "key": "DATABASE_URL", "sync": false },
+        { "key": "NEWSAPI_KEY", "sync": false }
+      ]
+    }
+  ]
+}

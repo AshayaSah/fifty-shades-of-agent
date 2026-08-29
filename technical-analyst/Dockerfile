@@ -1,15 +1,18 @@
 # syntax=docker/dockerfile:1
 #
-# Multi-stage build for the technical-analyst MCP server, using uv.
+# Single Dockerfile for the technical-analyst MCP server (FastAPI + Streamable HTTP).
 #
 #   Stages:
-#     - `base` : Python 3.13 runtime + uv + dependency sync
-#     - `dev`  : dev dependencies + editable install (hot-reload friendly)
-#     - `prod` : runtime-only, project wheel installed + non-root user
+#     - `dev` : full toolchain (pytest, ruff) + editable install
+#     - `prod`: runtime-only, project wheel installed + non-root user
 #
-#   Build this image from the technical-analyst directory:
+#   Deploy to Render by pointing a Blueprint "Docker" service at this directory.
+#   Render builds the default (last) stage = `prod` and sets $PORT at runtime.
+#
+#   Local build / run:
 #     docker build --target dev  -t fifty/technical-analyst:dev  .
 #     docker build --target prod -t fifty/technical-analyst:prod .
+#     docker run -p 8000:8000 --env-file .env fifty/technical-analyst:prod
 
 FROM ghcr.io/astral-sh/uv:python3.13-bookworm-slim AS base
 
@@ -31,6 +34,8 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # Copy the source tree in last (changes most often).
 COPY . .
 
+EXPOSE 8000
+
 # ---------------------------------------------------------------------------
 # dev: full toolchain (pytest, ruff) + editable install.
 # ---------------------------------------------------------------------------
@@ -39,7 +44,7 @@ FROM base AS dev
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --editable
 
-CMD ["sh", "-c", "uv run --active python /app/main.py"]
+CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"]
 
 # ---------------------------------------------------------------------------
 # prod: runtime dependencies only + project wheel, drop to non-root user.
@@ -54,4 +59,4 @@ RUN useradd --create-home --shell /usr/sbin/nologin appuser \
     && chown -R appuser:appuser /app
 USER appuser
 
-CMD ["sh", "-c", "uv run --active python /app/main.py"]
+CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"]

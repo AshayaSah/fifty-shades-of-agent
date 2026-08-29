@@ -7,7 +7,7 @@ name = "news-scraper"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.14"
+requires-python = ">=3.13"
 dependencies = [
     "fastapi>=0.115,<1.0",
     "fastmcp>=3.4.7,<4.0.0",
@@ -16,17 +16,22 @@ dependencies = [
     "python-dotenv>=1.2.3",
     "requests>=2.34.2",
     "spacy>=3.8.16",
-    "torch>=2.13.0",
+    "en-core-web-sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl",
     "trafilatura>=2.2.0",
-    "transformers>=5.15.1",
     "uvicorn>=0.30",
     "vadersentiment>=3.3.2",
+    "torch>=2.13.0",
+    "transformers>=5.15.1",
 ]
+
 
 [dependency-groups]
 dev = [
     "pytest>=9.1.1",
 ]
+
+[tool.hatch.metadata]
+allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/news_scraper"]

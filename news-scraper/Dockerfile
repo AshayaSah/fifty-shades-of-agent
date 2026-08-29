@@ -1,17 +1,20 @@
 # syntax=docker/dockerfile:1
 #
-# Multi-stage build for the news-scraper MCP server, using uv.
+# Single Dockerfile for the news-scraper MCP server (FastAPI + Streamable HTTP).
 #
 #   Stages:
-#     - `base` : Python 3.14 runtime + uv + dependency sync
-#     - `dev`  : dev dependencies + editable install (hot-reload friendly)
-#     - `prod` : runtime-only, project wheel installed + non-root user
+#     - `dev` : full toolchain (pytest) + editable install (hot-reload friendly)
+#     - `prod`: runtime-only, project wheel installed + non-root user
 #
-#   Build this image from the news-scraper directory:
+#   Deploy to Render by pointing a Blueprint "Docker" service at this directory.
+#   Render builds the default (last) stage = `prod` and sets $PORT at runtime.
+#
+#   Local build / run:
 #     docker build --target dev  -t fifty/news-scraper:dev  .
 #     docker build --target prod -t fifty/news-scraper:prod .
+#     docker run -p 8000:8000 --env-file .env fifty/news-scraper:prod
 
-FROM ghcr.io/astral-sh/uv:python3.14-bookworm-slim AS base
+FROM ghcr.io/astral-sh/uv:python3.13-bookworm-slim AS base
 
 ENV UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \
@@ -25,17 +28,14 @@ WORKDIR /app
 COPY pyproject.toml uv.lock .python-version ./
 
 # Install software dependencies (not the project itself, for a reusable base).
+# `en_core_web_sm` is a declared dependency here, so no separate `spacy download`.
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --no-install-project --no-editable
 
-# The spaCy `en_core_web_sm` model is a separate download, not a pip package.
-# Pull it once here, into the shared base, so both dev and prod images have it
-# at build time instead of on first scrape.
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv run --active python -m spacy download en_core_web_sm
-
 # Copy the source tree in last (changes most often).
 COPY . .
+
+EXPOSE 8000
 
 # ---------------------------------------------------------------------------
 # dev: full toolchain (pytest) + editable install, git for mcp dev, source mounted.
@@ -45,7 +45,7 @@ FROM base AS dev
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --editable
 
-CMD ["sh", "-c", "uv run --active python /app/main.py"]
+CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"]
 
 # ---------------------------------------------------------------------------
 # prod: runtime dependencies only + project wheel, drop to non-root user.
@@ -60,4 +60,4 @@ RUN useradd --create-home --shell /usr/sbin/nologin appuser \
     && chown -R appuser:appuser /app
 USER appuser
 
-CMD ["sh", "-c", "uv run --active python /app/main.py"]
+CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"]

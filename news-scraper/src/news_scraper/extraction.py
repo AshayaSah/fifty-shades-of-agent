@@ -2,7 +2,14 @@ import spacy
 
 from news_scraper import sentiment
 
-_nlp = spacy.load("en_core_web_sm")
+_nlp = None
+
+
+def _get_nlp():
+    global _nlp
+    if _nlp is None:
+        _nlp = spacy.load("en_core_web_sm")
+    return _nlp
 
 _EVENT_RULES = [
     ("earnings", [
@@ -47,7 +54,7 @@ def extract_entities(text: str) -> dict[str, list[str]]:
     """
     if not text:
         return {"orgs": [], "people": [], "locations": []}
-    doc = _nlp(text[:10000])
+    doc = _get_nlp()(text[:10000])
     orgs, people, locations = set(), set(), set()
     for ent in doc.ents:
         if ent.label_ == "ORG":
@@ -92,7 +99,7 @@ def score_entities(text: str, entities: dict[str, list[str]]) -> dict[str, float
     if not text or not entities:
         return {}
 
-    doc = _nlp(text[:10000])
+    doc = _get_nlp()(text[:10000])
     sentences = [sent.text for sent in doc.sents]
 
     all_entity_names = (
