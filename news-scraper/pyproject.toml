@@ -32,6 +32,11 @@ ml = [
     "torch>=2.13.0",
     "transformers>=5.15.1",
 ]
+# Export-only packages for the Docker `onnx-export` build stage (PyTorch's
+# ONNX exporter needs the `onnx` package). Kept out of the runtime image.
+export = [
+    "onnx>=1.16,<2.0",
+]
 
 [[tool.uv.index]]
 name = "pytorch-cpu"
