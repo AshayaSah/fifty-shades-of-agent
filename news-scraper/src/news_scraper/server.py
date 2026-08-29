@@ -1,7 +1,7 @@
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 
 from news_scraper import db, extraction, sentiment, sources
 
@@ -9,15 +9,15 @@ _MAX_ARTICLES = 15
 
 
 @asynccontextmanager
-async def lifespan(app):
+async def lifespan(server):
     db.init_db()
     yield
 
 
-mcp = FastMCP("news-scraper", host="0.0.0.0", port=8000, lifespan=lifespan)
+mcp = FastMCP("news-scraper", lifespan=lifespan)
 
 
-@mcp.tool()
+@mcp.tool
 def scrape_news(symbol: str, company_keyword: str, days: int = 30) -> dict:
     """Scrape recent news articles about a company from BBC and NewsAPI,
     analyze sentiment, extract entities and event types, and save to the
@@ -75,7 +75,7 @@ def scrape_news(symbol: str, company_keyword: str, days: int = 30) -> dict:
     }
 
 
-@mcp.tool()
+@mcp.tool
 def get_news(symbol: str, days: int = 30) -> list[dict]:
     """Retrieve previously scraped news articles for a stock symbol.
 
@@ -104,7 +104,7 @@ def get_news(symbol: str, days: int = 30) -> list[dict]:
     ]
 
 
-@mcp.tool()
+@mcp.tool
 def get_sentiment_summary(symbol: str, days: int = 30) -> dict:
     """Get an aggregate sentiment summary for a stock symbol based on scraped news.
 
@@ -145,7 +145,7 @@ def get_sentiment_summary(symbol: str, days: int = 30) -> dict:
     }
 
 
-@mcp.tool()
+@mcp.tool
 def get_sentiment_trend(symbol: str, days: int = 30) -> list[dict]:
     """Get daily sentiment trend for a stock symbol over time.
 
@@ -167,7 +167,7 @@ def get_sentiment_trend(symbol: str, days: int = 30) -> list[dict]:
     ]
 
 
-@mcp.tool()
+@mcp.tool
 def get_source_comparison(symbol: str, days: int = 30) -> list[dict]:
     """Compare sentiment across different news sources for a stock symbol.
 
