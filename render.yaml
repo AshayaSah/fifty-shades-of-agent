@@ -15,6 +15,8 @@ services:
         sync: false
       - key: NEWSAPI_KEY
         sync: false
+      - key: MCP_API_TOKEN
+        sync: false
 
   - type: web
     name: technical-analyst
@@ -31,6 +33,8 @@ services:
       - key: NEON_DATABASE_URL
         sync: false
       - key: TWELVE_DATA_API_KEY
+        sync: false
+      - key: MCP_API_TOKEN
         sync: false
       - key: CACHE_TTL_SECONDS
         value: "300"
