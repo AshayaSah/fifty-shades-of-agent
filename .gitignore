@@ -1,1 +1,4 @@
 .env
+# Torch-layout HF weights (438MB, raw binary) stay out of git; the fp32 ONNX
+# model lives in model.finbert-onnx and IS committed via Git LFS (.gitattributes).
+news-scraper/models/finbert/

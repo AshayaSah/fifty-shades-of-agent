@@ -24,26 +24,26 @@ mcp_app = mcp.http_app(
 # are registered before the mount and therefore take precedence.
 app = FastAPI(title="technical-analyst", lifespan=mcp_app.lifespan)
 
-MCP_API_TOKEN = settings.mcp_api_token
-
-
-class APIKeyMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request: Request, call_next):
-        if request.url.path == "/mcp" and MCP_API_TOKEN:
-            token = request.headers.get("x-api-key")
-            if not token:
-                auth = request.headers.get("authorization", "")
-                if auth.lower().startswith("bearer "):
-                    token = auth[7:].strip()
-            if token != MCP_API_TOKEN:
-                return JSONResponse(
-                    status_code=401,
-                    content={"detail": "Invalid or missing API token"},
-                )
-        return await call_next(request)
-
-
-app.add_middleware(APIKeyMiddleware)
+# MCP_API_TOKEN = settings.mcp_api_token
+#
+#
+# class APIKeyMiddleware(BaseHTTPMiddleware):
+#     async def dispatch(self, request: Request, call_next):
+#         if request.url.path == "/mcp" and MCP_API_TOKEN:
+#             token = request.headers.get("x-api-key")
+#             if not token:
+#                 auth = request.headers.get("authorization", "")
+#                 if auth.lower().startswith("bearer "):
+#                     token = auth[7:].strip()
+#             if token != MCP_API_TOKEN:
+#                 return JSONResponse(
+#                     status_code=401,
+#                     content={"detail": "Invalid or missing API token"},
+#                 )
+#         return await call_next(request)
+#
+#
+# app.add_middleware(APIKeyMiddleware)
 
 ROOT_HTML = """<!doctype html>
 <html lang="en">

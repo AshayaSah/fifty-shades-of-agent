@@ -38,6 +38,18 @@ COPY . .
 EXPOSE 8000
 
 # ---------------------------------------------------------------------------
+# onnx-export: build the fp32 ONNX FinBERT for the RAM-constrained runtime.
+# torch/transformers exist ONLY in this stage (never in the runtime image);
+# the onnxruntime sentiment backend loads /app/models/finbert-onnx lazily.
+# ---------------------------------------------------------------------------
+FROM base AS onnx-export
+
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install --python /app/.venv/bin/python torch transformers
+
+RUN python scripts/export_finbert_onnx.py --out /app/models/finbert-onnx
+
+# ---------------------------------------------------------------------------
 # dev: full toolchain (pytest) + editable install, git for mcp dev, source mounted.
 # ---------------------------------------------------------------------------
 FROM base AS dev
@@ -54,6 +66,9 @@ FROM base AS prod
 
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync
+
+# Bake the ONNX model into the runtime image (torch-free).
+COPY --from=onnx-export /app/models/finbert-onnx /app/models/finbert-onnx
 
 # Run as a non-privileged user.
 RUN useradd --create-home --shell /usr/sbin/nologin appuser \
