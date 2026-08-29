@@ -13,4 +13,5 @@
 .mypy_cache
 dist
 build
+models/
 Dockerfile

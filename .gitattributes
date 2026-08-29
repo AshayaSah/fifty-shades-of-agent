@@ -1,0 +1,2 @@
+# FinBERT ONNX weights are >100MB (GitHub blobs cap) -> Git LFS.
+news-scraper/models/finbert-onnx/** filter=lfs diff=lfs merge=lfs -text
