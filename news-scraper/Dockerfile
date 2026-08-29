@@ -39,23 +39,28 @@ EXPOSE 8000
 
 # ---------------------------------------------------------------------------
 # onnx-export: build the fp32 ONNX FinBERT for the RAM-constrained runtime.
-# torch/transformers exist ONLY in this stage (never in the runtime image);
-# the onnxruntime sentiment backend loads /app/models/finbert-onnx lazily.
+# torch/transformers/onnx live ONLY in this stage (never in the runtime image),
+# installed from the lock file via the `ml` + `export` extras; the onnxruntime
+# sentiment backend loads /app/models/finbert-onnx lazily at runtime.
 # ---------------------------------------------------------------------------
 FROM base AS onnx-export
 
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv pip install --python /app/.venv/bin/python torch transformers
+    uv sync --no-install-project --extra ml --extra export
 
 RUN python scripts/export_finbert_onnx.py --out /app/models/finbert-onnx
 
 # ---------------------------------------------------------------------------
-# dev: full toolchain (pytest) + editable install, git for mcp dev, source mounted.
+# dev: full toolchain (pytest) + editable install with the `ml` extra so the
+# torch sentiment backend is available (matches a local dev install), plus the
+# exported ONNX model so backend selection stays representative of prod.
 # ---------------------------------------------------------------------------
 FROM base AS dev
 
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --editable
+    uv sync --editable --extra ml
+
+COPY --from=onnx-export /app/models/finbert-onnx /app/models/finbert-onnx
 
 CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"]
 
