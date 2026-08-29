@@ -1,3 +1,4 @@
+import MetaTrader5 as mt5
 from datetime import datetime, timezone, timedelta
 from mcp.server.mcpserver import MCPServer
 import mt5_client
@@ -157,7 +158,6 @@ def _execute_trade(proposal_id: str, risk_percent: float) -> dict:
         audit.log_event("trade_rejected", {"proposal_id": proposal_id, "reason": "lot_size_zero"})
         return {"error": "Calculated lot size is 0. Check risk% and SL distance."}
 
-    mt5 = mt5_client.bridge()
     mt5_client.connect()
     order_type = mt5.ORDER_TYPE_BUY if proposal["direction"] == "buy" else mt5.ORDER_TYPE_SELL
     tick = mt5.symbol_info_tick(proposal["symbol"])
@@ -219,7 +219,6 @@ def _close_position(ticket: int) -> dict:
         audit.log_event("close_rejected", {"ticket": ticket, "reason": "kill_switch_on"})
         return {"error": "Kill switch is ON. All trading is halted."}
 
-    mt5 = mt5_client.bridge()
     mt5_client.connect()
     pos = mt5.positions_get(ticket=ticket)
     if not pos:
