@@ -1,27 +1,37 @@
-from concurrent.futures import ThreadPoolExecutor
+import asyncio
 from contextlib import asynccontextmanager
 
 from fastmcp import FastMCP
 
-from news_scraper import db, extraction, sentiment, sources
-
-_MAX_ARTICLES = 15
+from news_scraper import db, jobs, sentiment
+from news_scraper.jobs import queue_logger
 
 
 @asynccontextmanager
 async def lifespan(server):
-    db.init_db()
-    yield
+    await db.init_db()
+    recovered = await db.recover_stale_jobs()
+    if recovered:
+        queue_logger.warning("recovered %s stale 'running' job(s) after restart", recovered)
+    await asyncio.to_thread(sentiment.warm_start)
+    jobs.queue.start()
+    try:
+        yield
+    finally:
+        jobs.queue.stop()
 
 
 mcp = FastMCP("news-scraper", lifespan=lifespan)
 
 
 @mcp.tool
-def scrape_news(symbol: str, company_keyword: str, days: int = 30) -> dict:
-    """Scrape recent news articles about a company from BBC and NewsAPI,
-    analyze sentiment, extract entities and event types, and save to the
-    database. Optionally scrapes full article text.
+async def scrape_news(symbol: str, company_keyword: str, days: int = 30) -> dict:
+    """Queue a news scrape job for a company (BBC + NewsAPI), analyze
+    sentiment/entities/events, and save to the database.
+
+    This tool returns immediately with a job_id. Poll `get_job_status` for
+    the result. Scrapes run in the background so they never block the server
+    or time out the request.
 
     Args:
         symbol: Stock ticker symbol (e.g. "AAPL").
@@ -29,54 +39,49 @@ def scrape_news(symbol: str, company_keyword: str, days: int = 30) -> dict:
         days: How many days back to search (default 30).
 
     Returns:
-        Summary with article counts, full text scrape count, and event breakdown.
+        Job id and initial status ("pending").
     """
-    with ThreadPoolExecutor(max_workers=2) as pool:
-        bbc_f = pool.submit(sources.fetch_bbc, company_keyword)
-        newsapi_f = pool.submit(sources.fetch_newsapi, company_keyword, days)
-        bbc = bbc_f.result()
-        newsapi = newsapi_f.result()
+    symbol = symbol.strip()
+    company_keyword = company_keyword.strip()
+    job_id = await db.create_job(
+        symbol=symbol, company_keyword=company_keyword, days=days
+    )
+    job = await db.get_job(job_id=job_id)
+    job_uuid = str(job.job_uuid) if job else None
+    if not jobs.queue.enqueue(job_id, job_uuid=job_uuid):
+        error = "queue is full, try again later"
+        await db.set_job_status(job_id=job_id, status="failed", error=error)
+        return {"job_id": job_id, "job_uuid": job_uuid, "status": "failed", "error": error}
+    return {"job_id": job_id, "job_uuid": job_uuid, "status": "pending"}
 
-    all_articles = (bbc + newsapi)[:_MAX_ARTICLES]
 
-    texts_for_sentiment = [a["text"] for a in all_articles]
-    batch_scores = sentiment.score_texts(texts_for_sentiment)
+@mcp.tool
+async def get_job_status(job_id: int) -> dict:
+    """Check the status of a queued scrape job.
 
-    rows = []
-    event_counts = {}
-    for i, article in enumerate(all_articles):
-        text_for_analysis = texts_for_sentiment[i]
-        score = batch_scores[i]
-        entities = extraction.extract_entities(text_for_analysis)
-        event_type = extraction.classify_event(text_for_analysis)
-        entity_scores = extraction.score_entities(text_for_analysis, entities)
-        event_counts[event_type] = event_counts.get(event_type, 0) + 1
-        rows.append((
-            symbol,
-            article["source"],
-            article["title"],
-            article["url"],
-            article["published_at"],
-            score,
-            None,
-            entities,
-            event_type,
-            entity_scores,
-        ))
+    Args:
+        job_id: Job id returned by `scrape_news`.
 
-    db.save_articles(rows)
-
+    Returns:
+        Status ("pending", "running", "completed", "failed"), the scrape
+        result summary once completed, or the error message on failure.
+    """
+    job = await db.get_job(job_id=job_id)
+    if job is None:
+        return {"job_id": job_id, "status": "not_found"}
     return {
-        "symbol": symbol,
-        "articles_found": len(bbc + newsapi),
-        "articles_saved": len(rows),
-        "full_text_scraped": 0,
-        "event_breakdown": event_counts,
+        "job_id": job.id,
+        "job_uuid": str(job.job_uuid) if job.job_uuid else None,
+        "symbol": job.symbol,
+        "company_keyword": job.company_keyword,
+        "status": job.status,
+        "result": job.result,
+        "error": job.error,
     }
 
 
 @mcp.tool
-def get_news(symbol: str, days: int = 30) -> list[dict]:
+async def get_news(symbol: str, days: int = 30) -> list[dict]:
     """Retrieve previously scraped news articles for a stock symbol.
 
     Args:
@@ -87,13 +92,14 @@ def get_news(symbol: str, days: int = 30) -> list[dict]:
         List of articles with source, title, URL, publication time,
         sentiment score, entities, event type, and full article text.
     """
-    rows = db.fetch_articles(symbol, days)
+    symbol = symbol.strip()
+    rows = await db.fetch_articles(symbol=symbol, days=days)
     return [
         {
             "source": row[0],
             "title": row[1],
             "url": row[2],
-            "published_at": row[3],
+            "published_at": str(row[3]) if row[3] else None,
             "sentiment_score": row[4],
             "full_text": row[5],
             "entities": row[6],
@@ -105,7 +111,7 @@ def get_news(symbol: str, days: int = 30) -> list[dict]:
 
 
 @mcp.tool
-def get_sentiment_summary(symbol: str, days: int = 30) -> dict:
+async def get_sentiment_summary(symbol: str, days: int = 30) -> dict:
     """Get an aggregate sentiment summary for a stock symbol based on scraped news.
 
     Args:
@@ -116,7 +122,8 @@ def get_sentiment_summary(symbol: str, days: int = 30) -> dict:
         Symbol, article count, average sentiment, event breakdown,
         and average per-entity sentiment across all articles.
     """
-    rows = db.fetch_articles(symbol, days)
+    symbol = symbol.strip()
+    rows = await db.fetch_articles(symbol=symbol, days=days)
     scores = [row[4] for row in rows if row[4] is not None]
     avg = sum(scores) / len(scores) if scores else None
     event_counts = {}
@@ -146,7 +153,7 @@ def get_sentiment_summary(symbol: str, days: int = 30) -> dict:
 
 
 @mcp.tool
-def get_sentiment_trend(symbol: str, days: int = 30) -> list[dict]:
+async def get_sentiment_trend(symbol: str, days: int = 30) -> list[dict]:
     """Get daily sentiment trend for a stock symbol over time.
 
     Shows how average sentiment changes day-by-day, useful for
@@ -160,7 +167,8 @@ def get_sentiment_trend(symbol: str, days: int = 30) -> list[dict]:
         List of daily entries with date, average sentiment, and article count,
         most recent first.
     """
-    rows = db.fetch_sentiment_trend(symbol, days)
+    symbol = symbol.strip()
+    rows = await db.fetch_sentiment_trend(symbol=symbol, days=days)
     return [
         {"date": str(row[0]), "avg_sentiment": float(row[1]), "article_count": row[2]}
         for row in rows
@@ -168,7 +176,7 @@ def get_sentiment_trend(symbol: str, days: int = 30) -> list[dict]:
 
 
 @mcp.tool
-def get_source_comparison(symbol: str, days: int = 30) -> list[dict]:
+async def get_source_comparison(symbol: str, days: int = 30) -> list[dict]:
     """Compare sentiment across different news sources for a stock symbol.
 
     Shows which outlets are more positive or negative about a company,
@@ -182,7 +190,8 @@ def get_source_comparison(symbol: str, days: int = 30) -> list[dict]:
         List of source entries with source name, average sentiment,
         and article count, most positive first.
     """
-    rows = db.fetch_source_comparison(symbol, days)
+    symbol = symbol.strip()
+    rows = await db.fetch_source_comparison(symbol=symbol, days=days)
     return [
         {"source": row[0], "avg_sentiment": float(row[1]), "article_count": row[2]}
         for row in rows

@@ -22,6 +22,9 @@ dependencies = [
     "tokenizers>=0.21,<0.23",
     "uvicorn>=0.30",
     "vadersentiment>=3.3.2",
+    "sqlalchemy>=2.0,<2.1",
+    "alembic>=1.14,<2.0",
+    "gunicorn>=23,<24",
 ]
 
 # The full torch/transformers stack is OPTIONAL: only needed for the torch

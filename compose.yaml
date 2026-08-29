@@ -1,0 +1,23 @@
+services:
+  news-scraper:
+    image: localhost/fifty/news-scraper:prod
+    build:
+      context: news-scraper
+      dockerfile: Dockerfile
+      target: prod
+    mem_limit: 512m
+    network_mode: host
+    environment:
+      NEWS_SCRAPER_BACKEND: onnx
+      DATABASE_URL: ${DATABASE_URL}
+      NEWSAPI_KEY: ${NEWSAPI_KEY}
+      PORT: "8000"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request;urllib.request.urlopen('http://localhost:8000/health')"
+      interval: 10s
+      timeout: 5s
+      retries: 6

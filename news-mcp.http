@@ -1,0 +1,152 @@
+@baseUrl = https://ns.saastralabs.com
+@jobId = 11
+
+### health
+GET {{baseUrl}}/health
+
+### initialize
+POST {{baseUrl}}/mcp
+Content-Type: application/json
+Accept: application/json
+
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "initialize",
+  "params": {
+    "protocolVersion": "2025-06-18",
+    "capabilities": {},
+    "clientInfo": {
+      "name": "rest-client",
+      "version": "1.0"
+    }
+  }
+}
+
+### notifications/initialized
+POST {{baseUrl}}/mcp
+Content-Type: application/json
+Accept: application/json
+
+{
+  "jsonrpc": "2.0",
+  "method": "notifications/initialized",
+  "params": {}
+}
+
+### tools/list
+POST {{baseUrl}}/mcp
+Content-Type: application/json
+Accept: application/json
+
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "method": "tools/list",
+  "params": {}
+}
+
+### tools/call get_news
+POST {{baseUrl}}/mcp
+Content-Type: application/json
+Accept: application/json
+
+{
+  "jsonrpc": "2.0",
+  "id": 3,
+  "method": "tools/call",
+  "params": {
+    "name": "get_news",
+    "arguments": {
+      "symbol": "NVDA"
+    }
+  }
+}
+
+### tools/call scrape_news (queues a job, returns job_id immediately)
+POST {{baseUrl}}/mcp
+Content-Type: application/json
+Accept: application/json
+
+{
+  "jsonrpc": "2.0",
+  "id": 4,
+  "method": "tools/call",
+  "params": {
+    "name": "scrape_news",
+    "arguments": {
+      "symbol": "NVDA",
+      "company_keyword": "NVDA",
+      "days":7
+    }
+  }
+}
+
+### tools/call get_job_status (poll the queue job until completed/failed)
+POST {{baseUrl}}/mcp
+Content-Type: application/json
+Accept: application/json
+
+{
+  "jsonrpc": "2.0",
+  "id": 8,
+  "method": "tools/call",
+  "params": {
+    "name": "get_job_status",
+    "arguments": {
+      "job_id": {{jobId}}
+    }
+  }
+}
+
+### tools/call get_sentiment_summary
+POST {{baseUrl}}/mcp
+Content-Type: application/json
+Accept: application/json
+
+{
+  "jsonrpc": "2.0",
+  "id": 5,
+  "method": "tools/call",
+  "params": {
+    "name": "get_sentiment_summary",
+    "arguments": {
+      "symbol": "AAPL"
+    }
+  }
+}
+
+### tools/call get_sentiment_trend
+POST {{baseUrl}}/mcp
+Content-Type: application/json
+Accept: application/json
+
+{
+  "jsonrpc": "2.0",
+  "id": 6,
+  "method": "tools/call",
+  "params": {
+    "name": "get_sentiment_trend",
+    "arguments": {
+      "symbol": "AAPL",
+      "days": 7
+    }
+  }
+}
+
+### tools/call get_source_comparison
+POST {{baseUrl}}/mcp
+Content-Type: application/json
+Accept: application/json
+
+{
+  "jsonrpc": "2.0",
+  "id": 7,
+  "method": "tools/call",
+  "params": {
+    "name": "get_source_comparison",
+    "arguments": {
+      "symbol": "AAPL"
+    }
+  }
+}

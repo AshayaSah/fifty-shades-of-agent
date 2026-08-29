@@ -24,14 +24,18 @@ Force a choice with the environment variable:
 import importlib.util
 import logging
 import os
+from functools import lru_cache
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
 _MODEL_NAME = "ProsusAI/finbert"
 _MODEL_DIR = Path(__file__).resolve().parent.parent.parent / "models" / "finbert"
+_onnx_model_dir = Path(__file__).resolve().parent.parent.parent / "models" / "finbert-onnx"
 _ONNX_MODEL_FILE = (
-    Path(__file__).resolve().parent.parent.parent / "models" / "finbert-onnx" / "model.onnx"
+    _onnx_model_dir / "model.int8.onnx"
+    if (_onnx_model_dir / "model.int8.onnx").exists()
+    else _onnx_model_dir / "model.onnx"
 )
 _LABELS = ["positive", "negative", "neutral"]
 
@@ -155,43 +159,44 @@ def _torch_score(texts: list[str]) -> dict[int, float]:
 #   Render free tier). Same weights in full fp32 - no quantization, no torch.
 #   Requires models/finbert-onnx/model.onnx (generated at image build time).
 # ---------------------------------------------------------------------------
+@lru_cache(maxsize=1)
 def _onnx_load() -> bool:
     global _ort_session, _ort_tokenizer, _ort_cls, _ort_sep, _ort_pad, _ort_broken
     if _ort_broken:
         return False
-    if _ort_session is None:
-        try:
-            import onnxruntime as ort
-            from tokenizers import Tokenizer, models, normalizers, pre_tokenizers
+    try:
+        import onnxruntime as ort
+        from tokenizers import Tokenizer, models, normalizers, pre_tokenizers
 
-            vocab_path = _ONNX_MODEL_FILE.parent / "vocab.txt"
-            vocab = {}
-            with open(vocab_path) as f:
-                vocab = {line.rstrip(): i for i, line in enumerate(f)}
+        vocab_path = _ONNX_MODEL_FILE.parent / "vocab.txt"
+        vocab = {}
+        with open(vocab_path) as f:
+            vocab = {line.rstrip(): i for i, line in enumerate(f)}
 
-            tokenizer = Tokenizer(
-                models.WordPiece(vocab, unk_token="[UNK]", max_input_chars_per_word=100)
-            )
-            tokenizer.normalizer = normalizers.BertNormalizer(lowercase=True)
-            tokenizer.pre_tokenizer = pre_tokenizers.BertPreTokenizer()
-            tokenizer.enable_truncation(max_length=510)
+        tokenizer = Tokenizer(
+            models.WordPiece(vocab, unk_token="[UNK]", max_input_chars_per_word=100)
+        )
+        tokenizer.normalizer = normalizers.BertNormalizer(lowercase=True)
+        tokenizer.pre_tokenizer = pre_tokenizers.BertPreTokenizer()
+        tokenizer.enable_truncation(max_length=510)
 
-            options = ort.SessionOptions()
-            options.intra_op_num_threads = 1
-            session = ort.InferenceSession(
-                str(_ONNX_MODEL_FILE), options, providers=["CPUExecutionProvider"]
-            )
+        options = ort.SessionOptions()
+        options.intra_op_num_threads = 1
+        options.enable_cpu_mem_arena = False
+        session = ort.InferenceSession(
+            str(_ONNX_MODEL_FILE), options, providers=["CPUExecutionProvider"]
+        )
 
-            _ort_tokenizer = tokenizer
-            _ort_cls = vocab["[CLS]"]
-            _ort_sep = vocab["[SEP]"]
-            _ort_pad = vocab["[PAD]"]
-            _ort_session = session
-            logger.info("loaded FinBERT (onnxruntime) from %s", _ONNX_MODEL_FILE)
-        except Exception as exc:
-            _ort_broken = True
-            logger.warning("onnxruntime backend failed to load: %s", exc)
-            return False
+        _ort_tokenizer = tokenizer
+        _ort_cls = vocab["[CLS]"]
+        _ort_sep = vocab["[SEP]"]
+        _ort_pad = vocab["[PAD]"]
+        _ort_session = session
+        logger.info("loaded FinBERT (onnxruntime) from %s", _ONNX_MODEL_FILE)
+    except Exception as exc:
+        _ort_broken = True
+        logger.warning("onnxruntime backend failed to load: %s", exc)
+        return False
     return True
 
 
@@ -202,20 +207,28 @@ def _onnx_score(texts: list[str]) -> dict[int, float]:
     for text in texts:
         ids = [_ort_cls] + _ort_tokenizer.encode(text).ids[:510] + [_ort_sep]
         rows.append(ids)
-    width = max(len(ids) for ids in rows) if rows else 0
 
-    input_ids = np.zeros((len(rows), width), dtype=np.int64)
-    attention_mask = np.zeros((len(rows), width), dtype=np.int64)
-    for r, ids in enumerate(rows):
-        input_ids[r, : len(ids)] = ids
-        attention_mask[r, : len(ids)] = 1
+    out: dict[int, float] = {}
+    _CHUNK = 16
+    for start in range(0, len(rows), _CHUNK):
+        chunk = rows[start : start + _CHUNK]
+        width = max(len(ids) for ids in chunk)
+        input_ids = np.zeros((len(chunk), width), dtype=np.int64)
+        attention_mask = np.zeros((len(chunk), width), dtype=np.int64)
+        for r, ids in enumerate(chunk):
+            input_ids[r, : len(ids)] = ids
+            attention_mask[r, : len(ids)] = 1
 
-    logits = _ort_session.run(["logits"], {"input_ids": input_ids, "attention_mask": attention_mask})[0]
-    maxv = logits.max(axis=-1, keepdims=True)
-    e = np.exp(logits - maxv)
-    probs = e / e.sum(axis=-1, keepdims=True)
-    pos, neg = _LABELS.index("positive"), _LABELS.index("negative")
-    return {i: float(probs[i, pos] - probs[i, neg]) for i in range(len(texts))}
+        logits = _ort_session.run(
+            ["logits"], {"input_ids": input_ids, "attention_mask": attention_mask}
+        )[0]
+        maxv = logits.max(axis=-1, keepdims=True)
+        e = np.exp(logits - maxv)
+        probs = e / e.sum(axis=-1, keepdims=True)
+        pos, neg = _LABELS.index("positive"), _LABELS.index("negative")
+        for i in range(len(chunk)):
+            out[start + i] = float(probs[i, pos] - probs[i, neg])
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -248,3 +261,32 @@ def score_text(text: str) -> float:
 def score_texts(texts: list[str]) -> dict[int, float]:
     """Batch-score texts in a single forward pass. Returns dict index -> score."""
     return _score_texts(texts)
+
+
+def warm_start():
+    """Load the chosen sentiment backend eagerly (called at app startup).
+
+    The ONNX/torch model is otherwise loaded lazily on the first scoring call,
+    which puts a very slow cold-load inside the first scrape job. Warming at
+    boot moves that cost out of request handling entirely. `_onnx_load` is
+    LRU-cached, so the model file is read exactly once per process. A small
+    dummy forward pass forces graph compile + weight page-in now, instead of
+    during the first real job.
+    """
+    backend = get_backend()
+    if backend == ONNX:
+        loaded = _onnx_load()
+        if loaded:
+            _onnx_score(["warm-up"])
+    elif backend == TORCH:
+        loaded = _torch_load()
+    else:
+        loaded = True
+    logger.info("sentiment backend warm_start: backend=%s loaded=%s", backend, loaded)
+    return loaded
+
+
+def vader_score(text: str) -> float:
+    """Rule-based VADER score (-1..+1), no model load. Used for cheap
+    per-entity sentiment where full FinBERT inference is not worth the cost."""
+    return _vader_score(text)
