@@ -1,8 +1,9 @@
 import os
 
 import uvicorn
-from fastapi import FastAPI
-from fastapi.responses import HTMLResponse
+from fastapi import FastAPI, Request
+from fastapi.responses import HTMLResponse, JSONResponse
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from news_scraper.server import mcp
 
@@ -21,6 +22,27 @@ mcp_app = mcp.http_app(
 # (no trailing slash). FastAPI's own routes (/health, /docs, /openapi.json)
 # are registered before the mount and therefore take precedence.
 app = FastAPI(title="news-scraper", lifespan=mcp_app.lifespan)
+
+MCP_API_TOKEN = os.environ.get("MCP_API_TOKEN", "")
+
+
+class APIKeyMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        if request.url.path == "/mcp" and MCP_API_TOKEN:
+            token = request.headers.get("x-api-key")
+            if not token:
+                auth = request.headers.get("authorization", "")
+                if auth.lower().startswith("bearer "):
+                    token = auth[7:].strip()
+            if token != MCP_API_TOKEN:
+                return JSONResponse(
+                    status_code=401,
+                    content={"detail": "Invalid or missing API token"},
+                )
+        return await call_next(request)
+
+
+app.add_middleware(APIKeyMiddleware)
 
 ROOT_HTML = """<!doctype html>
 <html lang="en">

@@ -179,13 +179,20 @@ services:
     envVars:
       - { key: DATABASE_URL, sync: false }   # set in the dashboard
       - { key: NEWSAPI_KEY,  sync: false }
+      - { key: MCP_API_TOKEN, sync: false }
   - name: technical-analyst       # runtime: docker, dockerfilePath/context: technical-analyst/
     envVars:
       - { key: NEON_DATABASE_URL,    sync: false }
       - { key: TWELVE_DATA_API_KEY,  sync: false }
+      - { key: MCP_API_TOKEN,        sync: false }
       - { key: CACHE_TTL_SECONDS, value: "300" }
       - { key: LOG_LEVEL,        value: INFO }
 ```
+
+> **`MCP_API_TOKEN` guards `/mcp`.** When set, every request to `/mcp` must carry
+> the token via `X-API-Key: <token>` or `Authorization: Bearer <token>`
+> (unauthenticated requests get `401`). Leave it unset to disable auth locally
+> (the pytest suite relies on this). `/` and `/health` stay public.
 
 Secrets are declared with `sync: false` so they are **never** committed — set them
 once in the Render dashboard (Dashboard → service → Environment).
@@ -213,7 +220,8 @@ render services create \
   --root-directory news-scraper --plan free --region oregon \
   --health-check-path /health \
   --env-var 'DATABASE_URL=postgresql://…?sslmode=require&channel_binding=require' \
-  --env-var 'NEWSAPI_KEY=…' --output json
+  --env-var 'NEWSAPI_KEY=…' \
+  --env-var 'MCP_API_TOKEN=…' --output json
 
 # technical-analyst
 render services create \
@@ -224,6 +232,7 @@ render services create \
   --health-check-path /health \
   --env-var 'NEON_DATABASE_URL=postgresql://…?sslmode=require' \
   --env-var 'TWELVE_DATA_API_KEY=…' \
+  --env-var 'MCP_API_TOKEN=…' \
   --env-var 'CACHE_TTL_SECONDS=300' --env-var 'LOG_LEVEL=INFO' --output json
 ```
 
@@ -244,7 +253,21 @@ render logs -r <service-id> --tail           # follow build + runtime logs
 curl -s https://<service>.onrender.com/health                       # {"status":"ok"}
 curl -s -X POST https://<service>.onrender.com/mcp -H "Accept: application/json" \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $MCP_API_TOKEN" \
   -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"smoke","version":"0.1"}}}'
+```
+
+MCP clients such as Claude Desktop/Code can pass the token per server:
+
+```json
+{
+  "mcpServers": {
+    "news-scraper": {
+      "url": "https://<service>.onrender.com/mcp",
+      "headers": { "Authorization": "Bearer $MCP_API_TOKEN" }
+    }
+  }
+}
 ```
 
 ### Custom domain
