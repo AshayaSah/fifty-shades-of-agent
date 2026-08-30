@@ -47,7 +47,7 @@ If enough, do nothing external. Otherwise use the portfolio providers:
    body is unrealistic.
 3. **Guard pre-check.** `get_safety_config()`: kill switch off, `risk_percent <=
    max_risk_percent` (2.0), open positions `< max_concurrent_positions` (3).
-4. **Expiry awareness.** A `propose_trade` is valid only 15 minutes. If the user
+4. **Expiry awareness.** A `propose_trade` is valid only 30 minutes. If the user
    staged earlier, re-propose.
 5. **Capacity.** If at 3 positions, execution will be rejected; plan a close
    first via `close_position`.
@@ -64,7 +64,7 @@ If enough, do nothing external. Otherwise use the portfolio providers:
 
 - `resolve_symbol` returns no match
 - kill switch on at execution time
-- proposal older than 15 minutes when `execute_trade` is called
+- proposal older than 30 minutes when `execute_trade` is called
 
 ## Output structure
 

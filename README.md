@@ -2,7 +2,8 @@
 
 A trading-agent hackathon project built from three standalone MCP (Model Context
 Protocol) servers that work together to research, analyze, and trade financial
-markets.
+markets, plus a Next.js dashboard that orchestrates them through a coordinating
+agent and a set of reusable trading skills.
 
 ## Components
 
@@ -24,21 +25,30 @@ demo account. It resolves human-friendly symbols ("Apple", "gold"), proposes
 trades, enforces safety guards (kill switch, max risk, position cap, expiry), and
 executes/closes positions on MT5.
 
+### 4. `frontend` (dashboard)
+A Next.js web dashboard that drives the whole system through a TrueForge
+coordinating agent. It streams the agent's live work (reasoning, tool calls,
+phases) to the browser as Server-Sent Events and persists exploration sessions.
+
+### 5. `skills` (trading workflows)
+A portfolio of agent skills (`SKILL.md` files) that encode conservative trading
+workflows — pre-trade checks, risk review, position sizing, thesis validation —
+wired directly to the three MCP servers above.
+
 ## How they fit together
 
 Each service is independent and communicates over MCP. A coordinating agent can
 chain them — e.g. ask `news-scraper` for sentiment on a ticker, `technical-analyst`
 for a technical verdict, then route a go/no-go decision into `trader` to place the
-trade — while every layer persists its own state to its own database.
+trade — while every layer persists its own state to its own database. The `frontend`
+dashboard orchestrates this chaining via the TrueForge agent and visualizes it live.
 
 ## Repo layout
 
 ```
 fifty-shades-of-agent/
 ├── news-scraper/          # news + sentiment + entities (MCP, streamable-http)
-│   └── Dockerfile         # multi-stage uv build (dev / prod)
 ├── technical-analyst/     # price data + technical analysis (MCP)
-│   └── Dockerfile         # multi-stage uv build (dev / prod)
 ├── trader/                # Exness MT5 order execution (MCP)
 │   └── Dockerfile         # multi-stage uv build (dev / prod)
 ├── docker-compose.yml     # development environment (with local Postgres)
@@ -47,10 +57,10 @@ fifty-shades-of-agent/
 └── README.md              # this overview
 ```
 
-Each subfolder has its own `Dockerfile` and `README.md` with setup, tools, and
-configuration details.
+Each service subfolder has its own `README.md` with its folder-specific setup,
+tools, and configuration details.
 
-## Running locally (without Docker)
+## Running locally
 
 Each service is a separate `uv` project. From the repo root:
 
@@ -63,79 +73,7 @@ uv run --project trader python trader/main.py
 Or run all three with a process manager, as the root `Procfile` does
 (`foreman start` / `overmind start`).
 
-## Running with Docker
-
-Each service has its own multi-stage `Dockerfile` built around
-[`uv`](https://docs.astral.sh/uv/). Every Dockerfile produces both a
-**development** and a **production** image, selected with `--target`, so the
-`news-scraper` Dockerfile (which bundles the spaCy model) stays separate from
-the leaner `technical-analyst` and `trader` ones.
-
-### Building an image directly
-
-Each image is built from within its own service directory:
-
-```sh
-# Development (includes pytest, editable installs)
-docker build --target dev -t fifty/news-scraper:dev ./news-scraper
-
-# Production (runtime-only, non-root user, no source mount)
-docker build --target prod -t fifty/technical-analyst:prod ./technical-analyst
-```
-
-### Development environment — `docker-compose.yml`
-
-Boots all three services plus a local Postgres, mounts source as a volume for
-hot-reload, and configures each service to use the local database:
-
-```sh
-cp news-scraper/.env.example news-scraper/.env   # fill in keys as needed
-cp technical-analyst/.env.example technical-analyst/.env
-cp trader/.env.example trader/.env
-
-docker compose up --build
-```
-
-Host ports are mapped so services don't clash:
-
-| Service            | Container port | Host port |
-| ------------------ | -------------- | --------- |
-| `db` (Postgres)    | 5432           | 5432      |
-| `news-scraper`     | 8000           | 8001      |
-| `technical-analyst`| 8000           | 8002      |
-| `trader`           | 8000           | 8003      |
-| `mt5-sidecar` (RPyC)| 18812         | 18812     |
-| `mt5-sidecar` (noVNC)| 8080         | 8080      |
-
-Run a single service with `docker compose up --build <service>`, and tear
-everything down (including the DB volume) with `docker compose down -v`.
-
-> **Note:** local Postgres is a convenience for development. In production the
-> services talk to your Neon instance, so no database container is included.
-
-### Production environment — `docker-compose.prod.yml`
-
-Same set of per-service Dockerfiles, but the `prod` **target**: no source
-volumes, restart policies, and a bring-your-own database. Set the required
-values in a `.env.prod` file (derived from each service's `.env.example`):
-
-```sh
-# .env.prod
-NEWS_DATABASE_URL=postgresql://user:pass@host/db
-ANALYST_DATABASE_URL=postgresql://user:pass@host/db?sslmode=require
-TRADER_DATABASE_URL=postgresql://user:pass@host/db
-TWELVE_DATA_API_KEY=...
-EXNESS_LOGIN=...
-EXNESS_PASSWORD=...
-EXNESS_SERVER=...
-VNC_PASSWORD=...        # noVNC password for the MT5 sidecar
-```
-
-Then deploy:
-
-```sh
-docker compose -f docker-compose.prod.yml --env-file .env.prod up --build -d
-```
+The frontend is a separate Next.js app (run with `bun`). See `frontend/README.md`.
 
 ## Notes
 

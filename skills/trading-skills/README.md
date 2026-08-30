@@ -17,7 +17,7 @@ three MCP servers**:
 Skills carry a compact **Trade Context** (see `references/trade-context.md`)
 between runs instead of raw transcript, and they never bypass the trader
 server's hard guards (`max_risk_percent` 2.0, `max_concurrent_positions` 3,
-15-minute proposal expiry, kill switch).
+30-minute proposal expiry, kill switch).
 
 ## Start here
 

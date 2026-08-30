@@ -64,7 +64,7 @@ account. Safety guards are enforced server-side.
 **Hard execution constraints (do not fight these)**
 - Max risk per trade: `2.0%` of equity (`risk_percent` to `execute_trade`).
 - Max `3` concurrent open positions.
-- A proposal **expires after 15 minutes**; re-propose if stale.
+- A proposal **expires after 30 minutes**; re-propose if stale.
 - Kill switch ON halts everything. Check `get_safety_config()` before executing.
 - Lot size is computed server-side from `risk_percent` and SL distance. You pass
   intent (entry/sl/tp/risk%), not lots.
