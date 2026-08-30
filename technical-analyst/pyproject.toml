@@ -16,6 +16,7 @@ dependencies = [
     "python-dotenv>=1.0",
     "uvicorn>=0.30",
     "yfinance>=0.2.40",
+    "mcp[cli]>=1.29.1",
 ]
 
 [project.optional-dependencies]

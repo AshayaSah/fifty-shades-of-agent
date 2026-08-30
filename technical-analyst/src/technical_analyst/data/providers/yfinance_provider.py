@@ -5,6 +5,7 @@ import yfinance as yf
 
 from technical_analyst.data.models import Candle, OHLCVSeries
 from technical_analyst.data.providers.base import DataProvider, ProviderError
+from technical_analyst.data.providers.symbols import resolve_symbol
 from technical_analyst.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -23,9 +24,14 @@ class YFinanceProvider(DataProvider):
         end = datetime.now(timezone.utc)
         start = end - timedelta(days=lookback_days)
 
+        # A bare crypto symbol ("BTC") resolves on Yahoo to the wrong
+        # instrument (e.g. the Grayscale BTC Mini Trust ETF), so map it to
+        # the proper "<TICKER>-USD" price before querying.
+        ticker = resolve_symbol(symbol)
+
         try:
             df = yf.download(
-                symbol,
+                ticker,
                 start=start,
                 end=end,
                 interval=interval,
@@ -40,7 +46,7 @@ class YFinanceProvider(DataProvider):
             # unknown ticker, but just as easily a network/rate-limit issue.
             # Treat it as a retryable ProviderError so the router still
             # tries the secondary provider, rather than failing fast.
-            raise ProviderError(f"No data returned by yfinance for symbol '{symbol}'")
+            raise ProviderError(f"No data returned by yfinance for symbol '{ticker}'")
 
         # yfinance can return MultiIndex columns for some calls — flatten if so.
         if isinstance(df.columns, pd.MultiIndex):

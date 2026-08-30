@@ -7,6 +7,7 @@ from technical_analyst.data.providers.base import (
     ProviderError,
     SymbolNotFoundError,
 )
+from technical_analyst.data.providers.symbols import resolve_symbol
 from technical_analyst.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -33,7 +34,7 @@ class TwelveDataProvider(DataProvider):
         output_size = max(int(lookback_days * 5 / 7) + 5, 30)
 
         params = {
-            "symbol": symbol,
+            "symbol": resolve_symbol(symbol),
             "interval": td_interval,
             "outputsize": output_size,
             "apikey": settings.twelve_data_api_key,
