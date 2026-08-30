@@ -7,26 +7,52 @@ name = "news-scraper"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.14"
+requires-python = ">=3.13"
 dependencies = [
     "fastapi>=0.115,<1.0",
     "fastmcp>=3.4.7,<4.0.0",
     "feedparser>=6.0.14",
+    "onnxruntime>=1.20,<2.0",
     "psycopg[binary]>=3.3.4",
     "python-dotenv>=1.2.3",
     "requests>=2.34.2",
     "spacy>=3.8.16",
-    "torch>=2.13.0",
+    "en-core-web-sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl",
     "trafilatura>=2.2.0",
-    "transformers>=5.15.1",
+    "tokenizers>=0.21,<0.23",
     "uvicorn>=0.30",
     "vadersentiment>=3.3.2",
 ]
+
+# The full torch/transformers stack is OPTIONAL: only needed for the torch
+# sentiment backend (local dev / high-RAM hosts). The 512 MB-free production
+# images run sentiment through onnxruntime instead and never install these.
+[project.optional-dependencies]
+ml = [
+    "torch>=2.13.0",
+    "transformers>=5.15.1",
+]
+# Export-only packages for the Docker `onnx-export` build stage (PyTorch's
+# ONNX exporter needs the `onnx` package). Kept out of the runtime image.
+export = [
+    "onnx>=1.16,<2.0",
+]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }
 
 [dependency-groups]
 dev = [
     "pytest>=9.1.1",
 ]
+
+[tool.hatch.metadata]
+allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/news_scraper"]

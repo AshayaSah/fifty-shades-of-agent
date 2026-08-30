@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     cache_ttl_seconds: int = 300
     log_level: str = "INFO"
     mcp_allowed_hosts: str = ""
+    mcp_api_token: str = ""
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

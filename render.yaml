@@ -1,0 +1,40 @@
+services:
+  - type: web
+    name: news-scraper
+    runtime: docker
+    repo: https://github.com/AshayaSah/fifty-shades-of-agent
+    branch: main
+    dockerfilePath: news-scraper/Dockerfile
+    dockerContext: news-scraper
+    region: oregon
+    plan: free
+    autoDeploy: true
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: NEWSAPI_KEY
+        sync: false
+      - key: NEWS_SCRAPER_BACKEND
+        value: onnx
+
+  - type: web
+    name: technical-analyst
+    runtime: docker
+    repo: https://github.com/AshayaSah/fifty-shades-of-agent
+    branch: main
+    dockerfilePath: technical-analyst/Dockerfile
+    dockerContext: technical-analyst
+    region: oregon
+    plan: free
+    autoDeploy: true
+    healthCheckPath: /health
+    envVars:
+      - key: NEON_DATABASE_URL
+        sync: false
+      - key: TWELVE_DATA_API_KEY
+        sync: false
+      - key: CACHE_TTL_SECONDS
+        value: "300"
+      - key: LOG_LEVEL
+        value: INFO
