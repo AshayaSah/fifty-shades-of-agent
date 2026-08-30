@@ -15,7 +15,7 @@ Built as the news-intelligence layer for a trading-agent hackathon project.
 - **Event classification** — a keyword-rule classifier tags each article with the primary event type:
   `earnings`, `lawsuit`, `acquisition`, `product_launch`, `market_movement`, `executive`, `regulation`, `other`.
 - **Postgres persistence** — deduplicated storage (via `ON CONFLICT (url)`) in Neon Postgres, with **JSONB** columns for entities and entity sentiment.
-- **MCP-native** — six tools exposed over `streamable-http`, consumable by any MCP client (Trueforge, Claude, the MCP Inspector, etc.).
+- **MCP-native** — five tools exposed over `streamable-http`, consumable by any MCP client (Trueforge, Claude, the MCP Inspector, etc.).
 
 ---
 
