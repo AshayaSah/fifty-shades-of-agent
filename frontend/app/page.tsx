@@ -1,4 +1,4 @@
-import Chat from "./components/Chat";
+import TradingDashboard from "./components/Dashboard";
 
 export default function Home() {
   return (
@@ -10,7 +10,8 @@ export default function Home() {
         </div>
       </header>
       <div className="flex-1 flex flex-col min-h-0">
-        <Chat />
+        <TradingDashboard></TradingDashboard>
+        {/* <Chat /> */}
       </div>
     </main>
   );
