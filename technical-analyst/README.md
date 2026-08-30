@@ -5,11 +5,38 @@ MCP server that fetches stock price data and produces a technical analysis
 bullish/bearish/neutral verdict with suggested stop-loss/take-profit),
 for the `fifty-shades-of-agent` project.
 
+## Folder structure
+
+```
+technical-analyst/
+├── main.py                      # streamable-http entrypoint (uv run main.py)
+├── verify_phase1.py             # one-off phase-1 verification script
+├── src/technical_analyst/
+│   ├── server.py                # FastMCP server + tools
+│   ├── config.py                # pydantic app/env config
+│   ├── analysis/                # report generation
+│   │   ├── indicators.py        # RSI, MACD, ATR, volatility, volume
+│   │   ├── patterns.py          # trend / support-resistance detection
+│   │   ├── signals.py           # cross-indicator signals
+│   │   └── report.py            # assembles the final technical report
+│   ├── data/                    # price data access
+│   │   ├── cache.py             # in-process result cache
+│   │   ├── models.py            # OHLCV + report pydantic models
+│   │   └── providers/           # yfinance (primary) + Twelve Data (fallback)
+│   │       └── router.py        # picks provider, falls back on failure
+│   ├── db/                      # Neon persistence
+│   │   ├── connection.py        # psycopg pool
+│   │   ├── repository.py        # candle/report CRUD
+│   │   └── schema.sql           # table definitions
+│   └── utils/logging.py
+└── tests/                       # test_indicators.py, test_symbols.py, fixtures/
+```
+
 ## Setup
 
 ```bash
-pip install -e ".[dev]"
-cp .env.example .env      # fill in TWELVE_DATA_API_KEY and NEON_DATABASE_URL
+uv sync                          # install (incl. dev group)
+cp .env.example .env             # fill in TWELVE_DATA_API_KEY and NEON_DATABASE_URL
 ```
 
 Set up your own Neon database (not shared with teammates):
@@ -19,12 +46,12 @@ psql "$NEON_DATABASE_URL" -f src/technical_analyst/db/schema.sql
 
 Run the server:
 ```bash
-python main.py
+uv run main.py
 ```
 
 Inspect/test tools manually in the browser:
 ```bash
-mcp dev main.py
+uv run mcp dev main.py
 ```
 
 ## Data providers

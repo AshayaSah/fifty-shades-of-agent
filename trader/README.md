@@ -3,6 +3,21 @@
 A simple MCP server for trading on the Exness MetaTrader 5 demo account. It exposes
 trade tools that an AI agent (or any MCP client) can call.
 
+## Folder structure
+
+```
+trader/
+├── main.py               # MCP server: tools + safety-guard enforcement
+├── mt5_client.py         # MT5 backend abstraction (native metatrader5 vs mt5linux)
+├── proposals.py          # trade proposal CRUD (persisted in Postgres)
+├── sizing.py             # lot-size calculation from risk% / SL distance
+├── audit.py              # event logging to audit_log.jsonl
+├── db.py                 # Postgres init / connection
+├── audit_log.jsonl       # append-only audit trail
+├── pyproject.toml        # deps; platform markers pick linux/win32 MT5 package
+└── tests/                # test_sizing.py, test_symbol_resolve.py, test_e2e_demo.py
+```
+
 ## Requirements
 
 - Windows with MetaTrader 5 terminal installed and **logged in**
@@ -79,7 +94,7 @@ directly at the running HTTP server by entering `http://localhost:8000/mcp` as t
 ## Safety guards
 
 - `execute_trade` respects: kill switch, max 2% risk per trade, max 3 open positions,
-  and a 15-minute proposal expiry.
+  and a 30-minute proposal expiry.
 - Proposals are stored in a PostgreSQL database (survive restarts).
 
 ## Tests
