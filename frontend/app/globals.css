@@ -3,6 +3,10 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+
+  /* curated motion — the frontend design baseline uses a single expressive
+     ease for reveals and a tighter one for immediate state changes */
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @theme inline {
@@ -22,5 +26,149 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", Roboto, Arial, sans-serif;
+}
+
+/* ---- agent activity motion ---- */
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes pulse-soft {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@keyframes shimmer-x {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes blink-caret {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+@keyframes slide-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes bar-fill {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+
+.animate-fade-up {
+  animation: fade-up 320ms var(--ease-out-expo) both;
+}
+.animate-scale-in {
+  animation: scale-in 240ms var(--ease-out-expo) both;
+}
+.animate-pulse-soft {
+  animation: pulse-soft 1.4s ease-in-out infinite;
+}
+.animate-slide-in-right {
+  animation: slide-in-right 260ms var(--ease-out-expo) both;
+}
+.animate-caret {
+  animation: blink-caret 1s steps(1) infinite;
+}
+.bar-animate {
+  transform-origin: bottom center;
+  animation: bar-fill 500ms var(--ease-out-expo) both;
+}
+
+/* skeleton shimmer: neutral placeholder that never blinks the whole block */
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  border-radius: 9999px;
+  background: #ece7da;
+}
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.65),
+    transparent
+  );
+  background-size: 200% 100%;
+  animation: shimmer-x 1.6s ease-in-out infinite;
+}
+
+/* phase stepper connector fills (background an any later washes out) */
+.step-dot {
+  transition: background-color 320ms var(--ease-out-expo),
+    transform 320ms var(--ease-out-expo);
+}
+.connector {
+  transform-origin: left center;
+  transition: transform 320ms var(--ease-out-expo);
+}
+
+/* tool row: monospace-ish live feed keeps numbers aligned */
+.tool-feed pre {
+  font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo,
+    monospace;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

@@ -1,4 +1,3 @@
-import Chat from "./components/Chat";
 import TradingDashboard from "./components/Dashboard";
 
 export default function Home() {
